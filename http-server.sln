@@ -1,0 +1,24 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "http-server.Tests", "http-server.Tests\http-server.Tests.csproj", "{B9CACBC4-021F-4984-9B8A-9FCBBAD6F78B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "http-server", "http-server\http-server.csproj", "{628FC0CB-D7B4-446C-8AFB-B4F112A9CF72}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B9CACBC4-021F-4984-9B8A-9FCBBAD6F78B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B9CACBC4-021F-4984-9B8A-9FCBBAD6F78B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B9CACBC4-021F-4984-9B8A-9FCBBAD6F78B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B9CACBC4-021F-4984-9B8A-9FCBBAD6F78B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{628FC0CB-D7B4-446C-8AFB-B4F112A9CF72}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{628FC0CB-D7B4-446C-8AFB-B4F112A9CF72}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{628FC0CB-D7B4-446C-8AFB-B4F112A9CF72}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{628FC0CB-D7B4-446C-8AFB-B4F112A9CF72}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+	EndGlobalSection
+EndGlobal
