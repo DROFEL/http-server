@@ -1,4 +1,7 @@
+using System.Buffers;
 using System.Data;
+using System.IO.Pipelines;
+using System.Text;
 using http_server.helpers;
 using HttpMethod = http_server.HttpMethod;
 
@@ -6,62 +9,117 @@ namespace http;
 
 public class HttpParser : IHttpParser
 {
-    public static async Task<HttpRequest> ParseRequest(Stream stream)
+    private static readonly byte[] Delimiter = Encoding.ASCII.GetBytes("\r\n");
+    public static async Task<HttpRequest> ParseRequest(PipeReader reader)
     {
-        var reader = new StreamReader(stream);
 
-                var main = await reader.ReadLineAsync();
+        var http = await ReadStatusLine(reader);
+        var url = http.path.Split("?");
+        var path = url[0];
+        var queryParams = ParseQueryParams(http.path);
+        var headers = await ReadHeadersAsync(reader);
+        
+        return HttpRequest.Create(http.method, http.version, path, headers, queryParams);
+    }
 
-                if (main == null)
+    private static async Task<(HttpMethod method, string path, string version)> ReadStatusLine(PipeReader reader)
+    {
+        var (line, _) = await ReadLine(reader, Delimiter);
+        var http = line.Split(" ");
+        if (Enum.TryParse<HttpMethod>(http[0], out var method))
+        {
+            throw new ConstraintException("Incorrect http request method");
+        }
+        return new (method, http[1], http[2]);
+    }
+
+    private static IEnumerable<KeyValuePair<string,string>> ParseQueryParams(string url)
+    {
+        var queryParams = new Dictionary<string, string>();
+        var splitUrl = url.Split("?");
+        if (splitUrl.Length < 2)
+            return queryParams;
+        var path = splitUrl[0];
+        if (path.Length > 1)
+        {
+            foreach (var param in path.Split("&"))
+            {
+                var parts = param.Split('=');
+                if (parts.Length != 2)
                 {
-                    throw new ConstraintException("Incorrect http request");
+                    continue;
                 }
+                var key = parts[0];
+                var value = parts[1];
+                queryParams.Add(key, value);
+            }
+        }
 
-                var http = main.Split(" ");
-                var url = http[1].Split("?");
-                if (Enum.TryParse<HttpMethod>(http[0], out var method))
-                {
-                    throw new ConstraintException("Incorrect http request method");
-                }
-                var path = url[0];
-                var httpVersion = http[2].Split("/")[1];
+        return queryParams;
+    }
+    private static async Task<IEnumerable<KeyValuePair<string,string>>> ReadHeadersAsync(PipeReader reader)
+    {
+        var headers = new Dictionary<string, string>();
+        
+        while (true)
+        {
 
-                var queryParams = new Dictionary<string, string>();
-                if (url.Length > 1)
+            var (header, eof) = await ReadLine(reader, Delimiter); 
+            if (header == "")
+            {
+                return headers;
+            }
+            var headerDelimiterPos = header.IndexOf(':');
+            if (headerDelimiterPos > 0)
+            {
+                var headerName = header.Substring(0, headerDelimiterPos);
+                var value = header.Substring(headerDelimiterPos + 1).Trim();
+                if (headers.TryGetValue(headerName, out var headerValue))
                 {
-                    foreach (var param in url[1].Split("&"))
-                    {
-                        var parts = param.Split('=');
-                        if (parts.Length != 2)
-                        {
-                            continue;
-                        }
-                        var key = parts[0];
-                        var value = parts[1];
-                        queryParams.Add(key, value);
-                    }
+                    Console.WriteLine($"{headerName} already exists");
                 }
+                headers.Add(headerName, value);
+            }
 
-                var headers = new Dictionary<string, string>();
-                string line;
-                // Step 1: Read headers
-                while (!string.IsNullOrWhiteSpace(line = await reader.ReadLineAsync()))
-                {
-                    var indexOfSplit = line.IndexOf(":");
-                    if (indexOfSplit > 0)
-                    {
-                        headers.Add(line[0..indexOfSplit], line.Replace(" ", "")[(indexOfSplit + 1)..^0]);
-                    }
-                }
+            if (eof)
+            {
+                return headers;
+            }
+        }
+    }
 
-                char[] body = null;
-                if (headers.TryGetValue("Content-Length", out var contentLength))
-                {
-                    var buffer = new char[int.Parse(contentLength)];
-                    await reader.ReadBlockAsync(buffer, 0, buffer.Length);
-                    body = buffer;
-                }
-        return HttpRequest.Create(method, httpVersion, path, headers, queryParams, body);
+    static async Task<(string line, bool EOF)> ReadLine(PipeReader reader, byte[] delimiter)
+    {
+        var res = await reader.ReadAsync();
+        var buf = res.Buffer;
+        var (line, pos) = ReadLineFromBuffer(buf, delimiter);
+        reader.AdvanceTo(pos, pos);
+        var EOF = res.IsCompleted || buf.Length == 0;
+        if (line.Length == 0)
+        {
+            return (string.Empty, EOF);
+        }
+        else
+        {
+            return (Encoding.ASCII.GetString(line), EOF);
+        }
+    }
+
+    static (ReadOnlySequence<byte>, SequencePosition) ReadLineFromBuffer(
+        ReadOnlySequence<byte> buffer,
+        ReadOnlySpan<byte> delimiter)
+    {
+        var sr = new SequenceReader<byte>(buffer);
+        if (sr.TryReadTo(out ReadOnlySequence<byte> sequence, delimiter, advancePastDelimiter: true))
+        {
+            return (sequence, sr.Position);
+        }
+
+        return (new ReadOnlySequence<byte>(), sr.Position);
+    }
+    public static void ParseBody(string body)
+    {
+        
     }
 
     static void ParseFormData(string body)

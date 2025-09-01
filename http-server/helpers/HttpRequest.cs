@@ -10,7 +10,7 @@ public sealed record HttpRequest(
     ContentType ContentType,
     ImmutableDictionary<string, string> Headers,
     ImmutableDictionary<string, string> QueryParameters,
-    char[]? Body
+    IAsyncEnumerable<ReadOnlyMemory<byte>>? Body
 )
 {
     public static HttpRequest Create(
@@ -19,7 +19,7 @@ public sealed record HttpRequest(
         string path,
         IEnumerable<KeyValuePair<string,string>>? headers = null,
         IEnumerable<KeyValuePair<string,string>>? query = null,
-        char[]? body = null)
+        IAsyncEnumerable<ReadOnlyMemory<byte>>? body = null)
     {
         var headerMap = (headers ?? Array.Empty<KeyValuePair<string,string>>())
             .ToImmutableDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
@@ -32,16 +32,9 @@ public sealed record HttpRequest(
 
         return new HttpRequest(method, httpVersion, path, ct, headerMap, queryMap, body);
     }
-    public static HttpRequest Create(
-        HttpRequest request,
-
-        char[]? body = null)
-    {
-        return new HttpRequest(request.Method, request.HttpVersion, request.Path, request.ContentType, request.Headers, request.QueryParameters, body);
-    }
 
     public override string ToString()
     {
-        return $"{Method} {HttpVersion} {Path}. Headers: {JsonSerializer.Serialize(Headers)}. Content: {ContentType.ToMime()} Body: {new string(Body)}";
+        return $"{Method} {HttpVersion} {Path}. Headers: {JsonSerializer.Serialize(Headers)}. Content: {ContentType.ToMime()}";
     }
 }
