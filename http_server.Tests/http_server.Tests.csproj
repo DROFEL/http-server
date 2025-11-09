@@ -24,7 +24,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\http-server\http-server.csproj" />
+      <ProjectReference Include="..\http_server\http_server.csproj" />
     </ItemGroup>
 
 </Project>

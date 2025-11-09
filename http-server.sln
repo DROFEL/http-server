@@ -1,8 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "http-server.Tests", "http-server.Tests\http-server.Tests.csproj", "{B9CACBC4-021F-4984-9B8A-9FCBBAD6F78B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "http_server.Tests", "http_server.Tests\http_server.Tests.csproj", "{B9CACBC4-021F-4984-9B8A-9FCBBAD6F78B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "http-server", "http-server\http-server.csproj", "{628FC0CB-D7B4-446C-8AFB-B4F112A9CF72}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "http_server", "http_server\http_server.csproj", "{628FC0CB-D7B4-446C-8AFB-B4F112A9CF72}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

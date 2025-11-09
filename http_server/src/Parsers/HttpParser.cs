@@ -22,7 +22,7 @@ public class HttpParser : IHttpParser
         return HttpRequest.Create(http.method, http.version, path, headers, queryParams);
     }
 
-    private static async Task<(HttpMethod method, string path, string version)> ReadStatusLine(PipeReader reader)
+    public static async Task<(HttpMethod method, string path, HttpVersion version)> ReadStatusLine(PipeReader reader)
     {
         var (line, _) = await ReadLine(reader, Delimiter);
         var http = line.Split(" ");
@@ -30,7 +30,11 @@ public class HttpParser : IHttpParser
         {
             throw new ConstraintException("Incorrect http request method");
         }
-        return new (method, http[1], http[2]);
+        if (Enum.TryParse<HttpVersion>(http[2], out var version))
+        {
+            throw new ConstraintException("Incorrect http version");
+        }
+        return new (method, http[1], version);
     }
 
     private static IEnumerable<KeyValuePair<string,string>> ParseQueryParams(string url)

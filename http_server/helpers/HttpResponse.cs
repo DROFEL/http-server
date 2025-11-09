@@ -13,7 +13,7 @@ public class HttpResponse
     private HttpResponse()
     {
         _headers = new Dictionary<string, string>();
-        _headers.Add(HttpHeaderName.Server, "CSharpHttpLearningServer/1");
+        _headers.Add(HttpHeaderName.Server, $"{Constants.ServerName}/{Constants.ServerVersion}");
         _headers.Add(HttpHeaderName.Date, DateTime.UtcNow.ToString("r"));
         _headers.Add(HttpHeaderName.ContentType, "text/plain; charset=utf-8");
         _headers.Add(HttpHeaderName.Connection, "Closed");
@@ -33,19 +33,29 @@ public class HttpResponse
 
     public byte[] FormatResponseAsByteArray()
     {
+        var responseBuilder = new StringBuilder();
+        responseBuilder.Append($"HTTP/{_httpVersion} {(ushort)_statusCode} {_statusCode}");
+
         if (_body != null)
         {
             _headers.Add(HttpHeaderName.ContentLength, _body.Length.ToString());
         }
-        var headersCombineed = _headers.Select(header => $"{header.Key}: {header.Value}");
-        var headersString = string.Join("\r\n", headersCombineed);
-        var responseString =
-            @$"HTTP/{_httpVersion} {(ushort)_statusCode} {_statusCode}\r\n{headersString}";
+
+        var headersString = GenerateHeadersString();
+        if (!string.IsNullOrEmpty(headersString))
+            responseBuilder.Append(headersString).Append("\r\n");
+        responseBuilder.Append(Constants.CRLF);
         if (_body != null)
         {
-            responseString += "\r\n\r\n";
-            responseString += _body;
+            responseBuilder.Append(_body);
         }
-        return Encoding.UTF8.GetBytes(responseString);
+        return Encoding.UTF8.GetBytes(responseBuilder.ToString());
+    }
+
+    private string GenerateHeadersString()
+    {
+        var headersCombined = _headers.Select(header => $"{header.Key}: {header.Value}");
+        var headersString = string.Join(Constants.CRLF, headersCombined);
+        return headersString;
     }
 }

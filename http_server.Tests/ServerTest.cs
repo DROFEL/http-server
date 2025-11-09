@@ -1,6 +1,6 @@
 namespace http_server.Tests;
 
-public class ServerTests
+public class HttpServerTests
 {
     [SetUp]
     public void Setup()

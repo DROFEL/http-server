@@ -5,7 +5,7 @@ namespace http_server.helpers;
 
 public sealed record HttpRequest(
     HttpMethod Method,
-    string HttpVersion,
+    HttpVersion HttpVersion,
     string Path,
     ContentType ContentType,
     ImmutableDictionary<string, string> Headers,
@@ -15,7 +15,7 @@ public sealed record HttpRequest(
 {
     public static HttpRequest Create(
         HttpMethod method,
-        string httpVersion,
+        HttpVersion httpVersion,
         string path,
         IEnumerable<KeyValuePair<string,string>>? headers = null,
         IEnumerable<KeyValuePair<string,string>>? query = null,

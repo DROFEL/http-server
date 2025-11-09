@@ -1,4 +1,3 @@
-using System.Data;
 using System.IO.Pipelines;
 using System.Net;
 using System.Net.Security;
@@ -8,12 +7,14 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using http_server;
 using http_server.helpers;
-using HttpMethod = http_server.HttpMethod;
+using http.Handlers;
 
 namespace http;
 
-public class Server : IAsyncDisposable
+public class HttpServer : IAsyncDisposable
 {
+    public bool IsReady = false;
+
     private readonly TcpListener _listener;
     private readonly IRouteHandler _routeHandler;
     private readonly ILog _log;
@@ -21,14 +22,12 @@ public class Server : IAsyncDisposable
 
     private Task? _loopTask;
     private CancellationTokenSource _cts = new();
-    
-    
 
-    public Server(string ip, int port)
+    public HttpServer(IPAddress ip, int port)
     {
         try
         {
-            var address = IPAddress.Parse(ip);
+            var address = ip;
             this._listener = new TcpListener(address, port);
             this._routeHandler = new RouteHandler();
             this._log = new Log();
@@ -40,7 +39,7 @@ public class Server : IAsyncDisposable
         }
     }
 
-    public Server(string ip, int port, X509Certificate2 certificate): this(ip, port)
+    public HttpServer(IPAddress ip, int port, X509Certificate2 certificate): this(ip, port)
     {
         this._certificate = certificate;
     }
@@ -59,15 +58,6 @@ public class Server : IAsyncDisposable
             _routeHandler.RegisterRoute(attribute.HttpMethod, attribute.Path, method);
         }
     }
-
-    public void Start()
-    {
-        if (_loopTask == null)
-        {
-            _loopTask = StartAsync(_cts.Token);
-        }
-    }
-
     public async Task StopAsync()
     {
         _cts.Cancel();
@@ -79,14 +69,22 @@ public class Server : IAsyncDisposable
         }
     }
 
-    private async Task StartAsync(CancellationToken cancellationToken = default)
+    public Task Start()
+    {
+        var startTask = StartAsync();
+        this._loopTask = startTask;
+        return startTask;
+    }
+
+    private async Task StartAsync()
     {
         _listener.Start();
         _log.WriteLine("Server started");
-        while (!cancellationToken.IsCancellationRequested)
+        while (!_cts.IsCancellationRequested)
         {
             var client = await _listener.AcceptTcpClientAsync();
-            _ = HandleConnectionAsync(client, cancellationToken); 
+            var connectionCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            _ = HandleConnectionAsync(client, connectionCts.Token);
             
         }
     }
@@ -94,21 +92,27 @@ public class Server : IAsyncDisposable
     private async Task HandleConnectionAsync(TcpClient client, CancellationToken token = default)
     {
         _log.WriteLine("Connection opened");
-        using (client); 
-        await using var net = client.GetStream();
-
-        Stream wire = net;
-        if (_certificate is not null)
+        using (client)
         {
-            await using var ssl = new SslStream(net, leaveInnerStreamOpen: false);
-            await ssl.AuthenticateAsServerAsync(_certificate); // add ct overloads if you like
-            wire = ssl;
+            await using var net = client.GetStream();
+
+            Stream wire = net;
+            if (_certificate is not null)
+            {
+                await using var ssl = new SslStream(net, leaveInnerStreamOpen: false);
+                await ssl.AuthenticateAsServerAsync(_certificate);
+                wire = ssl;
+            }
+
+
+            var reader = PipeReader.Create(wire);
+            var writer = PipeWriter.Create(wire);
+            var (_, _, version) = await HttpParser.ReadStatusLine(reader);
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+            var handler = HttpHandlerFactory.Create(version);
+            await handler.Accept(wire, cts.Token);
+
         }
-        
-        var reader = PipeReader.Create(wire);
-        var writer = PipeWriter.Create(wire);
-        var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-        await HandleRequestAsync(reader, writer, cts.Token);
         
     }
 
@@ -122,7 +126,7 @@ public class Server : IAsyncDisposable
             var request = await HttpParser.ParseRequest(reader);
             _log.WriteLine(request.ToString());
 
-            var response = new HttpResponse(HttpCodes.BadRequest, null, "Test bad request");
+            var response = new HttpResponse(HttpCodes.OK, null, "Test bad request");
             var responseBytes = response.FormatResponseAsByteArray();
             await writer.WriteAsync(responseBytes);
 
@@ -147,6 +151,12 @@ public class Server : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        await Dispose();
+    }
+
+    private async ValueTask Dispose()
+    {
+        await _cts.CancelAsync();
         await CastAndDispose(_listener);
         if (_certificate != null) await CastAndDispose(_certificate);
         if (_loopTask != null) await CastAndDispose(_loopTask);
