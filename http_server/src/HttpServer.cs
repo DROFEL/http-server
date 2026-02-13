@@ -107,46 +107,15 @@ public class HttpServer : IAsyncDisposable
 
             var reader = PipeReader.Create(wire);
             var writer = PipeWriter.Create(wire);
-            var (_, _, version) = await HttpParser.ReadStatusLine(reader);
             var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-            var handler = HttpHandlerFactory.Create(version);
-            await handler.Accept(wire, cts.Token);
+            var httpRequest = await HttpParser.ParseRequest(reader);
+            
+            var context = new ConnectionContext(reader, writer, httpRequest, cts.Token);
+            var handler = HttpHandlerFactory.Create(httpRequest.HttpVersion);
+            await handler.Accept(context);
 
         }
         
-    }
-
-    private async Task HandleRequestAsync(PipeReader reader, PipeWriter writer, CancellationToken token = default)
-    {
-        try
-        {
-            var fullMessage = await reader.ReadAsync();
-            _log.WriteLine(Encoding.ASCII.GetString(fullMessage.Buffer));
-
-            var request = await HttpParser.ParseRequest(reader);
-            _log.WriteLine(request.ToString());
-
-            var response = new HttpResponse(HttpCodes.OK, null, "Test bad request");
-            var responseBytes = response.FormatResponseAsByteArray();
-            await writer.WriteAsync(responseBytes);
-
-            _log.WriteLine("Connection closed");
-        }
-        catch (Exception e)
-        {
-            _log.WriteLine(e.ToString());
-            try
-            {
-                var errorResponse = new HttpResponse(HttpCodes.BadRequest);
-
-                var bytes = errorResponse.FormatResponseAsByteArray();
-                await writer.WriteAsync(bytes);
-            }
-            catch (Exception inner)
-            {
-                _log.WriteLine("Failed to send error response: " + inner);
-            }
-        }
     }
 
     public async ValueTask DisposeAsync()

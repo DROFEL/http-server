@@ -2,9 +2,8 @@ namespace http.Handlers;
 
 public class UnsupportedConnectionHandler : IConnectionHandler
 {
-    public Task Accept(Stream stream, CancellationToken ct = default)
+    public Task Accept(ConnectionContext connectionContext)
     {
-        stream.Close();
         return Task.CompletedTask;
     }
 }

@@ -7,14 +7,12 @@ public abstract class BaseConnectionHandler: IConnectionHandler
 {
     private static int _requestCount = 0;
 
-    public async Task Accept(Stream stream, CancellationToken ct = default)
+    public async Task Accept(ConnectionContext context)
     {
-        var reader = PipeReader.Create(stream);
-        var writer = PipeWriter.Create(stream);
         Interlocked.Increment(ref _requestCount);
-        await HandleRequest(reader, writer, ct);
+        await HandleRequest(context);
     }
 
-    protected abstract Task HandleRequest(PipeReader reader, PipeWriter writer, CancellationToken cancellationToken);
+    protected abstract Task HandleRequest(ConnectionContext context);
     public static int RequestCount => Volatile.Read(ref _requestCount);
 }

@@ -2,5 +2,5 @@ namespace http.Handlers;
 
 public interface IConnectionHandler
 {
-    Task Accept(Stream stream, CancellationToken ct = default);
+    Task Accept(ConnectionContext context);
 }
