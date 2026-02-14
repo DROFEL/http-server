@@ -5,7 +5,7 @@ using System.Text;
 using http_server.helpers;
 using HttpMethod = http_server.HttpMethod;
 
-namespace http;
+namespace http_server.Parsers;
 
 public class HttpParser : IHttpParser
 {

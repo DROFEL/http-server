@@ -1,4 +1,4 @@
-namespace http.Handlers;
+namespace http_server.Handlers;
 
 public interface IConnectionHandler
 {

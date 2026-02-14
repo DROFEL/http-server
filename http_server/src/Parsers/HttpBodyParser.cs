@@ -2,7 +2,7 @@ using System.IO.Pipelines;
 using System.Text;
 using http_server.helpers;
 
-namespace http;
+namespace http_server.Parsers;
 
 public class HttpBodyParser
 {

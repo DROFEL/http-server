@@ -1,6 +1,6 @@
 using http_server.helpers;
 
-namespace http.Handlers;
+namespace http_server.Handlers;
 
 public static class HttpHandlerFactory
 {

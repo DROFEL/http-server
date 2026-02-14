@@ -35,5 +35,6 @@
 	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=6c0a9c6a_002D3ea0_002D437c_002D82bb_002D34f859477394/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" IsActive="True" Name="HttpServer_IntegrationTests" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;
   &lt;TestAncestor&gt;
     &lt;TestId&gt;NUnit3x::B9CACBC4-021F-4984-9B8A-9FCBBAD6F78B::net8.0::http_server.Tests.HttpServer_IntegrationTests&lt;/TestId&gt;
+    &lt;TestId&gt;NUnit3x::B9CACBC4-021F-4984-9B8A-9FCBBAD6F78B::net8.0::http_server.Tests.HttpParserTest&lt;/TestId&gt;
   &lt;/TestAncestor&gt;
 &lt;/SessionState&gt;</s:String></wpf:ResourceDictionary>

@@ -7,9 +7,10 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using http_server;
 using http_server.helpers;
-using http.Handlers;
+using http_server.Handlers;
+using http_server.Parsers;
 
-namespace http;
+namespace http_server;
 
 public class HttpServer : IAsyncDisposable
 {

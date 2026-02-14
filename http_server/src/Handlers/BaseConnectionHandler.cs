@@ -1,7 +1,7 @@
 using System.IO.Pipelines;
 using http_server.helpers;
 
-namespace http.Handlers;
+namespace http_server.Handlers;
 
 public abstract class BaseConnectionHandler: IConnectionHandler
 {

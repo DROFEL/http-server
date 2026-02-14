@@ -1,4 +1,4 @@
-using http;
+using http_server.Parsers;
 using System.IO.Pipelines;
 
 namespace http_server.Tests;
@@ -13,12 +13,7 @@ public class HttpParserTest
             "Host: localhost\r\n" +
             "User-Agent: TestClient\r\n" +
             "\r\n";
-        byte[] byteArray = System.Text.Encoding.ASCII.GetBytes(rawRequest);
-
-        // Wrap in a MemoryStream
-        Stream stream = new MemoryStream(byteArray);
-        var reader = PipeReader.Create(stream);
-        var request = await HttpParser.ParseRequest(reader);
+        var request = await HttpParser.ParseRequest(CreateTextPipeReader(rawRequest));
         Assert.Multiple(() =>
         {
             Assert.That(request.Method, Is.EqualTo(HttpMethod.Get));
@@ -38,12 +33,7 @@ public class HttpParserTest
             "User-Agent: TestClient\r\n" +
             "\r\n\r\n" +
             "Some body goes inhere";
-        byte[] byteArray = System.Text.Encoding.ASCII.GetBytes(rawRequest);
-
-        // Wrap in a MemoryStream
-        Stream stream = new MemoryStream(byteArray);
-        var reader = PipeReader.Create(stream);
-        var request = await HttpParser.ParseRequest(reader);
+        var request = await HttpParser.ParseRequest(CreateTextPipeReader(rawRequest));
         Assert.Multiple(() =>
         {
             Assert.That(request.Method, Is.EqualTo(HttpMethod.Get));
@@ -61,12 +51,7 @@ public class HttpParserTest
             "Host localhost\r\n" +
             "User-Agent: TestClient\r\n" +
             "\r\n";
-        byte[] byteArray = System.Text.Encoding.ASCII.GetBytes(rawRequest);
-
-        // Wrap in a MemoryStream
-        Stream stream = new MemoryStream(byteArray);
-        var reader = PipeReader.Create(stream);
-        var request = await HttpParser.ParseRequest(reader);
+        var request = await HttpParser.ParseRequest(CreateTextPipeReader(rawRequest));
         Assert.Multiple(() =>
         {
             Assert.That(request.Method, Is.EqualTo(HttpMethod.Get));
@@ -81,12 +66,7 @@ public class HttpParserTest
         var rawRequest =
             "GET /test HTTP/1.1\r\n" +
             "User-Agent: TestClient";
-        byte[] byteArray = System.Text.Encoding.ASCII.GetBytes(rawRequest);
-
-        // Wrap in a MemoryStream
-        Stream stream = new MemoryStream(byteArray);
-        var reader = PipeReader.Create(stream);
-        var request = await HttpParser.ParseRequest(reader);
+        var request = await HttpParser.ParseRequest(CreateTextPipeReader(rawRequest));
         Assert.Multiple(() =>
         {
             Assert.That(request.Method, Is.EqualTo(HttpMethod.Get));
@@ -100,12 +80,7 @@ public class HttpParserTest
     {
         var rawRequest =
             "GET /test?someParam=1&anotherParam=Param HTTP/1.1\r\n";
-        byte[] byteArray = System.Text.Encoding.ASCII.GetBytes(rawRequest);
-
-        // Wrap in a MemoryStream
-        Stream stream = new MemoryStream(byteArray);
-        var reader = PipeReader.Create(stream);
-        var request = await HttpParser.ParseRequest(reader);
+        var request = await HttpParser.ParseRequest(CreateTextPipeReader(rawRequest));
         Assert.Multiple(() =>
         {
             Assert.That(request.Method, Is.EqualTo(HttpMethod.Get));
@@ -115,5 +90,12 @@ public class HttpParserTest
             Assert.That(request.QueryParameters["anotherParam"], Is.EqualTo("Param"));
             Assert.That(request.Body, Is.Null);
         });
+    }
+
+    private PipeReader CreateTextPipeReader(string text)
+    {
+        byte[] byteArray = System.Text.Encoding.ASCII.GetBytes(text);
+        Stream stream = new MemoryStream(byteArray);
+        return PipeReader.Create(stream);
     }
 }

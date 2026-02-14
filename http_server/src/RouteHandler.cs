@@ -2,7 +2,7 @@ using System.Reflection;
 using http_server.helpers;
 using HttpMethod = http_server.HttpMethod;
 
-namespace http;
+namespace http_server;
 
 public class RouteHandler : IRouteHandler
 {

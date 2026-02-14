@@ -1,6 +1,6 @@
 using System.IO.Pipelines;
 
-namespace http.Handlers;
+namespace http_server.Handlers;
 
 public class Http11Handler : BaseConnectionHandler
 {
