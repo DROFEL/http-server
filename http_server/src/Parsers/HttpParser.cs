@@ -30,6 +30,7 @@ public class HttpParser : IHttpParser
         {
             throw new ConstraintException("Incorrect http request method");
         }
+        // TODO: Add support for http0.9
         if (Enum.TryParse<HttpVersion>(http[2], out var version))
         {
             throw new ConstraintException("Incorrect http version");

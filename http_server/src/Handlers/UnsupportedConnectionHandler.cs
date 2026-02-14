@@ -1,5 +1,3 @@
-using http;
-
 namespace http_server.Handlers;
 
 public class UnsupportedConnectionHandler : IConnectionHandler

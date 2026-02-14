@@ -1,7 +1,7 @@
 using System.IO.Pipelines;
 using http_server.helpers;
 
-namespace http;
+namespace http_server;
 
 public record ConnectionContext(
     PipeReader TransportIn,

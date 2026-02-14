@@ -4,12 +4,9 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
-using http_server;
 using http_server.helpers;
 using http_server.Handlers;
 using http_server.Parsers;
-using http;
 
 namespace http_server;
 
@@ -20,6 +17,7 @@ public class HttpServer : IAsyncDisposable
     private readonly TcpListener _listener;
     private readonly IRouteHandler _routeHandler;
     private readonly ILog _log;
+    private readonly ConnectionHandler _connectionHandler;
     private readonly X509Certificate2? _certificate;
 
     private Task? _loopTask;
@@ -33,6 +31,7 @@ public class HttpServer : IAsyncDisposable
             this._listener = new TcpListener(address, port);
             this._routeHandler = new RouteHandler();
             this._log = new Log();
+            this._connectionHandler = new ();
         }
         catch (Exception e)
         {
@@ -86,8 +85,7 @@ public class HttpServer : IAsyncDisposable
         {
             var client = await _listener.AcceptTcpClientAsync();
             var connectionCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            _ = HandleConnectionAsync(client, connectionCts.Token);
-            
+            Task.Run(() => _connectionHandler.HandleConnectionAsync(client.GetStream(), connectionCts.Token), connectionCts.Token);
         }
     }
 
@@ -107,14 +105,23 @@ public class HttpServer : IAsyncDisposable
             }
 
 
-            var reader = PipeReader.Create(wire);
-            var writer = PipeWriter.Create(wire);
-            var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-            var httpRequest = await HttpParser.ParseRequest(reader);
-            
-            var context = new ConnectionContext(reader, writer, httpRequest, cts.Token);
-            var handler = HttpHandlerFactory.Create(httpRequest.HttpVersion);
-            await handler.Accept(context);
+            try
+            {
+                var reader = PipeReader.Create(wire);
+                var writer = PipeWriter.Create(wire);
+                var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+                var httpRequest = await HttpParser.ParseRequest(reader);
+
+                var context = new ConnectionContext(reader, writer, httpRequest, cts.Token);
+                var handler = HttpHandlerFactory.Create(httpRequest.HttpVersion);
+                await handler.Accept(context);
+            }
+            catch (Exception e)
+            {
+                var userErrorHttpResponse = new HttpResponse(400);
+                await wire.WriteAsync(userErrorHttpResponse.FormatResponseAsByteArray(), token);
+                return;
+            }
 
         }
         
