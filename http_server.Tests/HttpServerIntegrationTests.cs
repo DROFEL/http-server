@@ -5,7 +5,7 @@ namespace http_server.Tests;
 
 [TestFixture]
 [NonParallelizable]
-public class HttpServer_IntegrationTests
+public class HttpServerIntegrationTests
 {
     private HttpServerFixture _fixture;
     [OneTimeSetUp]

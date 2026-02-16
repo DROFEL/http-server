@@ -13,7 +13,7 @@ public class HttpParser : IHttpParser
     public static async Task<HttpRequest> ParseRequest(PipeReader reader)
     {
 
-        var http = await ReadStatusLine(reader);
+        var http = await ReadRequestLine(reader);
         var url = http.path.Split("?");
         var path = url[0];
         var queryParams = ParseQueryParams(http.path);
@@ -22,7 +22,7 @@ public class HttpParser : IHttpParser
         return HttpRequest.Create(http.method, http.version, path, headers, queryParams);
     }
 
-    public static async Task<(HttpMethod method, string path, HttpVersion version)> ReadStatusLine(PipeReader reader)
+    public static async Task<(HttpMethod method, string path, HttpVersion version)> ReadRequestLine(PipeReader reader)
     {
         var (line, _) = await ReadLine(reader, Delimiter);
         var http = line.Split(" ");
@@ -30,12 +30,15 @@ public class HttpParser : IHttpParser
         {
             throw new ConstraintException("Incorrect http request method");
         }
-        // TODO: Add support for http0.9
-        if (Enum.TryParse<HttpVersion>(http[2], out var version))
+        
+        var httpVersion = HttpVersion.Http09;
+        if (http.Length > 2 && 
+            !string.IsNullOrEmpty(http[2]) && 
+            Enum.TryParse<HttpVersion>(http[2], out httpVersion))
         {
             throw new ConstraintException("Incorrect http version");
         }
-        return new (method, http[1], version);
+        return new (method, http[1], httpVersion);
     }
 
     private static IEnumerable<KeyValuePair<string,string>> ParseQueryParams(string url)
@@ -45,19 +48,16 @@ public class HttpParser : IHttpParser
         if (splitUrl.Length < 2)
             return queryParams;
         var path = splitUrl[0];
-        if (path.Length > 1)
+        foreach (var param in splitUrl[1].Split("&"))
         {
-            foreach (var param in path.Split("&"))
+            var parts = param.Split('=');
+            if (parts.Length != 2)
             {
-                var parts = param.Split('=');
-                if (parts.Length != 2)
-                {
-                    continue;
-                }
-                var key = parts[0];
-                var value = parts[1];
-                queryParams.Add(key, value);
+                continue;
             }
+            var key = parts[0];
+            var value = parts[1];
+            queryParams.Add(key, value);
         }
 
         return queryParams;
@@ -98,16 +98,10 @@ public class HttpParser : IHttpParser
         var res = await reader.ReadAsync();
         var buf = res.Buffer;
         var (line, pos) = ReadLineFromBuffer(buf, delimiter);
-        reader.AdvanceTo(pos, pos);
-        var EOF = res.IsCompleted || buf.Length == 0;
-        if (line.Length == 0)
-        {
-            return (string.Empty, EOF);
-        }
-        else
-        {
-            return (Encoding.ASCII.GetString(line), EOF);
-        }
+        var eof = res.IsCompleted && buf.Length - pos.GetInteger() == 0;
+        var lineString = Encoding.ASCII.GetString(line);
+        reader.AdvanceTo(pos);
+        return (lineString, eof);
     }
 
     static (ReadOnlySequence<byte>, SequencePosition) ReadLineFromBuffer(
@@ -120,7 +114,7 @@ public class HttpParser : IHttpParser
             return (sequence, sr.Position);
         }
 
-        return (new ReadOnlySequence<byte>(), sr.Position);
+        return (buffer, buffer.End);
     }
     public static void ParseBody(string body)
     {

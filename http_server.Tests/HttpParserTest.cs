@@ -1,5 +1,6 @@
 using http_server.Parsers;
 using System.IO.Pipelines;
+using http_server.helpers;
 
 namespace http_server.Tests;
 
@@ -89,6 +90,38 @@ public class HttpParserTest
             Assert.That(request.QueryParameters["someParam"], Is.EqualTo("1"));
             Assert.That(request.QueryParameters["anotherParam"], Is.EqualTo("Param"));
             Assert.That(request.Body, Is.Null);
+        });
+    }
+    
+    [Test]
+    public async Task Http09Version()
+    {
+        var rawRequest =
+            "GET /test?someParam=1&anotherParam=Param \r\n";
+        var request = await HttpParser.ParseRequest(CreateTextPipeReader(rawRequest));
+        Assert.Multiple(() =>
+        {
+            Assert.That(request.Method, Is.EqualTo(HttpMethod.Get));
+            Assert.That(request.HttpVersion, Is.EqualTo(HttpVersion.Http09));
+            Assert.That(request.Path, Is.EqualTo("/test"));
+            Assert.That(request.Headers.Count, Is.EqualTo(0));
+            Assert.That(request.QueryParameters["someParam"], Is.EqualTo("1"));
+            Assert.That(request.QueryParameters["anotherParam"], Is.EqualTo("Param"));
+            Assert.That(request.Body, Is.Null);
+        });
+    }
+    
+    [Test]
+    public async Task Http09NoTerminationDelimiter()
+    {
+        var rawRequest =
+            "GET /test";
+        var request = await HttpParser.ParseRequest(CreateTextPipeReader(rawRequest));
+        Assert.Multiple(() =>
+        {
+            Assert.That(request.Method, Is.EqualTo(HttpMethod.Get));
+            Assert.That(request.HttpVersion, Is.EqualTo(HttpVersion.Http09));
+            Assert.That(request.Path, Is.EqualTo("/test"));
         });
     }
 

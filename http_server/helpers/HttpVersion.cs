@@ -3,10 +3,11 @@ namespace http_server.helpers;
 public enum HttpVersion
 {
     Unknown = 0,
-    Http10 = 1 << 0,
-    Http11 = 1 << 1,
-    Http2 = 1 << 2,
-    Http3 = 1 << 3
+    Http09 = 1 << 0,
+    Http10 = 1 << 1,
+    Http11 = 1 << 2,
+    Http2 = 1 << 3,
+    Http3 = 1 << 4
 }
 [Flags]
 public enum HttpVersionMask
@@ -26,11 +27,12 @@ public static class HttpVersionExtensions
 {
     public static Version ToVersion(this HttpVersion v) => v switch
     {
+        HttpVersion.Http09 => new Version(0, 9),
         HttpVersion.Http10 => System.Net.HttpVersion.Version10,
         HttpVersion.Http11 => System.Net.HttpVersion.Version11,
         HttpVersion.Http2  => System.Net.HttpVersion.Version20,
         HttpVersion.Http3  => System.Net.HttpVersion.Version30,
-        _                => new Version(0, 0)
+        _                => System.Net.HttpVersion.Unknown
     };
 
     public static HttpVersion ToHttpVersion(string version) => version switch
