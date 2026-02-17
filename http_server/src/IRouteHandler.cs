@@ -6,7 +6,6 @@ namespace http_server;
 
 public interface IRouteHandler
 {
-    public void RegisterRoute(HttpMethod httpMethod, string path, MethodInfo route);
-    public MethodInfo MatchRoute(HttpMethod method, string path);
+    public bool TryMatchRoute(HttpMethod method, string path, out MethodInfo routeMethod);
 
 }
