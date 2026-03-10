@@ -237,61 +237,13 @@ MUST NOT include Entity-Body.
 (§8.3)
 
 
+# HTTP/1.1 REQUIREMENTS
 
 
-
-http 0.9 requirements 
-1. No http version in the request line => use HTTP/0.9 as a simple request.
-2. Support for only get method.
-3. After response complete close the connection
-
-    HTTP-message   = Simple-Request | Simple-Response
-    Simple-Request  = "GET" SP Request-URI CRLF
-    Simple-Response = [ Entity-Body ]
-
-http 1.0 Requirements 
-
-1. Accept datetime in RFC 1123, RFC 850 or ASCII's c asctime, for responses prefer RFC1123. All should be in GTM time 
-
-2. HTTP/1.0 in request line => full-request 
-
-3. For full request responsd with status line + headers + optional body
-       HTTP-message   = Full-Request             ; HTTP/1.0 messages
-                      | Full-Response
-
-       Full-Request   = Request-Line             ; Section 5.1
-                        *( General-Header        ; Section 4.3
-                         | Request-Header        ; Section 5.2
-                         | Entity-Header )       ; Section 7.1
-                        CRLF
-                        [ Entity-Body ]          ; Section 7.2
-
-       Full-Response  = Status-Line              ; Section 6.1
-                        *( General-Header        ; Section 4.3
-                         | Response-Header       ; Section 6.2
-                         | Entity-Header )       ; Section 7.1
-                        CRLF
-                        [ Entity-Body ]          ; Section 7.2
-
-        Request-Line = Method SP Request-URI SP HTTP-Version CRLF
-        Status-Line = HTTP-Version SP Status-Code SP Reason-Phrase CRLF
-
-
-4. Methods
-    5.1 respond with 501 if method is not implemented
-    5.2 HEAD must not return Entity body
-    5.3 Expose GET, POST, HEAD + allow user defiend
-5. Framing and protocol control headers
-    6.1 Content-Length
-        6.1.1 On response should be => 0 if content known (0 is no body, size of body in bytes if size is known)
-        6.1.2 On response if size of body is not known should not include header and should close the connection after transmitting body
-        6.1.3 On POST request must be >=0. If header or body is missing respond with 400
-        6.1.4 Other then POST methods must include header with value 0 or Entity body header
-    6.2 Content-Encoding on both request and response should either decode or encode with x-gzip or x-compress
-    6.3 If header is repeated expose to app layer as a array
-
-6. Server Response framing
-    6.1 No body for 1xx, 204, 304 status codes
+---
+---
+---
+# Misc
 
 
 

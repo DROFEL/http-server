@@ -26,19 +26,38 @@ public class HttpParser : IHttpParser
     {
         var (line, _) = await ReadLine(reader, Delimiter);
         var http = line.Split(" ");
-        if (Enum.TryParse<HttpMethod>(http[0], out var method))
+        var method = http[0] switch
         {
-            throw new ConstraintException("Incorrect http request method");
+            "GET" => HttpMethod.Get,
+            "POST" => HttpMethod.Post,
+            "PATCH" => HttpMethod.Patch,
+            "DELETE" => HttpMethod.Delete,
+            "HEAD" => HttpMethod.Head,
+            "OPTIONS" => HttpMethod.Options,
+            _ => throw new Exception($"Invalid HTTP method: {http[0]}")
+        };
+
+        var path = http[1];
+        var isValidPath = ValidatePath(path);
+
+        HttpVersion httpVersion = HttpVersion.Unknown;
+        
+        if (http.Length == 2 
+            && isValidPath 
+            && method != null)
+        {
+            httpVersion = HttpVersion.Http09;
+        } else if (http.Length == 3)
+        {
+            httpVersion = HttpVersionExtensions.ToHttpVersion(http[2]);
         }
         
-        var httpVersion = HttpVersion.Http09;
-        if (http.Length > 2 && 
-            !string.IsNullOrEmpty(http[2]) && 
-            Enum.TryParse<HttpVersion>(http[2], out httpVersion))
-        {
-            throw new ConstraintException("Incorrect http version");
-        }
-        return new (method, http[1], httpVersion);
+        return new (method, path, httpVersion);
+    }
+
+    private static bool ValidatePath(string path)
+    {
+        return true;
     }
 
     private static IEnumerable<KeyValuePair<string,string>> ParseQueryParams(string url)

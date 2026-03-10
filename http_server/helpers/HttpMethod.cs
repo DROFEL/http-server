@@ -2,8 +2,11 @@ namespace http_server;
 
 public enum HttpMethod
 {
+    Unknown,
     Get,
     Post,
     Patch,
-    Delete
+    Delete,
+    Head,
+    Options
 }

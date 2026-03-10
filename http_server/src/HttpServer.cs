@@ -6,7 +6,10 @@ using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using http_server.helpers;
 using http_server.Handlers;
+using http_server.ServerMetrics;
 using http_server.Parsers;
+using http_server.Router;
+using Prometheus;
 
 namespace http_server;
 
@@ -14,7 +17,7 @@ public class HttpServer : IAsyncDisposable
 {
     public bool IsReady = false;
 
-    private readonly TcpListener _listener;
+    private readonly ITcpConnectionAccepter _accepter;
     private readonly IRouteHandler _routeHandler;
     private readonly ILog _log;
     private readonly ConnectionHandler _connectionHandler;
@@ -23,21 +26,29 @@ public class HttpServer : IAsyncDisposable
     private Task? _loopTask;
     private CancellationTokenSource _cts = new();
 
-    public HttpServer(IPAddress ip, int port)
+    public HttpServer(
+        ITcpConnectionAccepter accepter,
+        IRouteHandler routeHandler,
+        ILog log,
+        ConnectionHandler connectionHandler,
+        X509Certificate2? certificate = null)
     {
-        try
-        {
-            var address = ip;
-            this._listener = new TcpListener(address, port);
-            this._routeHandler = new RouteHandler();
-            this._log = new Log();
-            this._connectionHandler = new ();
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine(e);
-            throw;
-        }
+        _accepter = accepter;
+        _routeHandler = routeHandler;
+        _log = log;
+        _connectionHandler = connectionHandler;
+        _certificate = certificate;
+
+        _ = typeof(http_server.ServerMetrics.PrometheusMetrics);
+    }
+    
+    public HttpServer(IPAddress ip, int port)
+        : this(
+            new TcpConnectionAccepter(ip, port),
+            new RouteHandler(),
+            new Log(),
+            new ConnectionHandler())
+    {
     }
 
     public HttpServer(IPAddress ip, int port, X509Certificate2 certificate): this(ip, port)
@@ -47,22 +58,11 @@ public class HttpServer : IAsyncDisposable
 
     public void RegisterController(object controller)
     {
-        var controllerType = controller.GetType();
-        var methods = controllerType.GetMethods();
-        foreach (var method in methods)
-        {
-            var attribute = method.GetCustomAttribute<Route>();
-            if (attribute == null)
-            {
-                continue;
-            }
-            _routeHandler.RegisterRoute(attribute.HttpMethod, attribute.Path, method);
-        }
     }
     public async Task StopAsync()
     {
         _cts.Cancel();
-        _listener.Stop();
+        _accepter.Stop();
         if (_loopTask != null)
         {
             try { await _loopTask; }
@@ -79,52 +79,61 @@ public class HttpServer : IAsyncDisposable
 
     private async Task StartAsync()
     {
-        _listener.Start();
+        _accepter.Start();
         _log.WriteLine("Server started");
         while (!_cts.IsCancellationRequested)
         {
-            var client = await _listener.AcceptTcpClientAsync();
+            var stream = await _accepter.AcceptStreamAsync();
             var connectionCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            Task.Run(() => _connectionHandler.HandleConnectionAsync(client.GetStream(), connectionCts.Token), connectionCts.Token);
+            Task.Run(() => _connectionHandler.HandleConnectionAsync(stream, connectionCts.Token), connectionCts.Token);
         }
     }
 
     private async Task HandleConnectionAsync(TcpClient client, CancellationToken token = default)
     {
-        _log.WriteLine("Connection opened");
-        using (client)
+        HttpServerMetrics.ActiveConnections.Inc();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        try
         {
-            await using var net = client.GetStream();
-
-            Stream wire = net;
-            if (_certificate is not null)
+            _log.WriteLine("Connection opened");
+            using (client)
             {
-                await using var ssl = new SslStream(net, leaveInnerStreamOpen: false);
-                await ssl.AuthenticateAsServerAsync(_certificate);
-                wire = ssl;
-            }
+                await using var net = client.GetStream();
 
+                Stream wire = net;
+                if (_certificate is not null)
+                {
+                    await using var ssl = new SslStream(net, leaveInnerStreamOpen: false);
+                    await ssl.AuthenticateAsServerAsync(_certificate);
+                    wire = ssl;
+                }
 
-            try
-            {
                 var reader = PipeReader.Create(wire);
                 var writer = PipeWriter.Create(wire);
                 var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
                 var httpRequest = await HttpParser.ParseRequest(reader);
 
+                HttpServerMetrics.RequestsTotal.Inc();
+
                 var context = new ConnectionContext(reader, writer, httpRequest, cts.Token);
                 var handler = HttpHandlerFactory.Create(httpRequest.HttpVersion);
                 await handler.Accept(context);
             }
-            catch (Exception e)
-            {
-                var userErrorHttpResponse = new HttpResponse(400);
-                await wire.WriteAsync(userErrorHttpResponse.FormatResponseAsByteArray(), token);
-                return;
-            }
-
         }
-        
+        catch (Exception e)
+        {
+            HttpServerMetrics.RequestsFailed.Inc();
+            _log.WriteLine($"Request failed: {e.Message}");
+            var userErrorHttpResponse = new HttpResponse(400);
+            await client.GetStream().WriteAsync(userErrorHttpResponse.FormatResponseAsByteArray(), token);
+        }
+        finally
+        {
+            stopwatch.Stop();
+            HttpServerMetrics.RequestDuration.Observe(stopwatch.Elapsed.TotalSeconds);
+            HttpServerMetrics.ActiveConnections.Dec();
+        }
     }
 
     public async ValueTask DisposeAsync()
@@ -135,7 +144,7 @@ public class HttpServer : IAsyncDisposable
     private async ValueTask Dispose()
     {
         await _cts.CancelAsync();
-        await CastAndDispose(_listener);
+        await CastAndDispose(_accepter);
         if (_certificate != null) await CastAndDispose(_certificate);
         if (_loopTask != null) await CastAndDispose(_loopTask);
         await CastAndDispose(_cts);
