@@ -8,6 +8,7 @@ namespace http_server;
 public class ConnectionHandler
 {
     private readonly ILog _log;
+    private readonly HttpParser _parser;
 
     public ConnectionHandler()
     {
@@ -15,7 +16,7 @@ public class ConnectionHandler
     }
     public async Task HandleConnectionAsync(Stream wire, CancellationToken token = default)
     {
-        _log.WriteLine("Connection opened");
+        _log.Debug("Connection opened");
         await using (wire)
         {
             // if (_certificate is not null)
@@ -31,16 +32,16 @@ public class ConnectionHandler
             
             try
             {
-                var httpRequest = await HttpParser.ParseRequest(reader);
+                var httpRequest = await _parser.ParseRequest(reader);
 
                 var context = new ConnectionContext(reader, writer, httpRequest, cts.Token);
                 var handler = HttpHandlerFactory.Create(httpRequest.HttpVersion);
-                _log.WriteLine($"Request on version {httpRequest.HttpVersion.ToString()} to {httpRequest.Path} with {httpRequest.Method}.");
+                _log.Debug($"Request on version {httpRequest.HttpVersion.ToString()} to {httpRequest.Path} with {httpRequest.Method}.");
                 await handler.Accept(context);
             }
             catch (Exception e)
             {
-                _log.WriteLine("Invalid request response: 400");
+                _log.Info("Invalid request response: 400");
                 var userErrorHttpResponse = new HttpResponse(400);
                 await writer.WriteAsync(userErrorHttpResponse.FormatResponseAsByteArray(), token);
                 return;

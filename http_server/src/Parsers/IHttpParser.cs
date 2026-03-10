@@ -8,6 +8,6 @@ namespace http_server.Parsers;
 
 public interface IHttpParser
 {
-    static abstract Task<HttpRequest> ParseRequest(PipeReader reader);
-    static abstract Task<(HttpMethod method, string path, HttpVersion version)> ReadRequestLine(PipeReader reader);
+    abstract Task<HttpRequest> ParseRequest(PipeReader reader);
+    abstract Task<(HttpMethod method, string path, HttpVersion version)> ReadRequestLine(PipeReader reader);
 }

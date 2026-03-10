@@ -10,22 +10,40 @@ namespace http_server.Parsers;
 public class HttpParser : IHttpParser
 {
     private static readonly byte[] Delimiter = Encoding.ASCII.GetBytes("\r\n");
-    public static async Task<HttpRequest> ParseRequest(PipeReader reader)
-    {
+    private readonly ILog _logger;
 
-        var http = await ReadRequestLine(reader);
-        var url = http.path.Split("?");
-        var path = url[0];
-        var queryParams = ParseQueryParams(http.path);
-        var headers = await ReadHeadersAsync(reader);
-        
-        return HttpRequest.Create(http.method, http.version, path, headers, queryParams);
+    public HttpParser()
+    {
+        _logger = new Log();
     }
 
-    public static async Task<(HttpMethod method, string path, HttpVersion version)> ReadRequestLine(PipeReader reader)
+    public async Task<HttpRequest> ParseRequest(PipeReader reader)
+    {
+        _logger.Debug("Starting HTTP request parsing");
+
+        var http = await ReadRequestLine(reader);
+        var pathOnly = http.path.Split("?")[0];
+        var queryParams = ParseQueryParams(http.path);
+        var headers = await ReadHeadersAsync(reader);
+
+        _logger.Info(
+            $"Parsed request {http.method} {pathOnly} {http.version}");
+
+        return HttpRequest.Create(http.method, http.version, pathOnly, headers, queryParams);
+    }
+
+    public async Task<(HttpMethod method, string path, HttpVersion version)> ReadRequestLine(PipeReader reader)
     {
         var (line, _) = await ReadLine(reader, Delimiter);
-        var http = line.Split(" ");
+        _logger.Debug($"Raw request line: {line}");
+
+        var http = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (http.Length < 2)
+        {
+            _logger.Info($"Malformed request line: {line}");
+            throw new Exception($"Malformed request line: {line}");
+        }
+
         var method = http[0] switch
         {
             "GET" => HttpMethod.Get,
@@ -41,89 +59,102 @@ public class HttpParser : IHttpParser
         var isValidPath = ValidatePath(path);
 
         HttpVersion httpVersion = HttpVersion.Unknown;
-        
-        if (http.Length == 2 
-            && isValidPath 
-            && method != null)
+
+        if (http.Length == 2 && isValidPath)
         {
             httpVersion = HttpVersion.Http09;
-        } else if (http.Length == 3)
+        }
+        else if (http.Length == 3)
         {
             httpVersion = HttpVersionExtensions.ToHttpVersion(http[2]);
         }
-        
-        return new (method, path, httpVersion);
+
+        _logger.Debug(
+            $"Parsed request line Method={method}, Path={path}, Version={httpVersion}");
+
+        return (method, path, httpVersion);
     }
 
-    private static bool ValidatePath(string path)
+    private bool ValidatePath(string path)
     {
         return true;
     }
 
-    private static IEnumerable<KeyValuePair<string,string>> ParseQueryParams(string url)
+    private IEnumerable<KeyValuePair<string, string>> ParseQueryParams(string url)
     {
         var queryParams = new Dictionary<string, string>();
-        var splitUrl = url.Split("?");
+        var splitUrl = url.Split('?');
+
         if (splitUrl.Length < 2)
             return queryParams;
-        var path = splitUrl[0];
-        foreach (var param in splitUrl[1].Split("&"))
+
+        foreach (var param in splitUrl[1].Split('&', StringSplitOptions.RemoveEmptyEntries))
         {
-            var parts = param.Split('=');
+            var parts = param.Split('=', 2);
             if (parts.Length != 2)
             {
+                _logger.Debug($"Skipping malformed query param: {param}");
                 continue;
             }
-            var key = parts[0];
-            var value = parts[1];
-            queryParams.Add(key, value);
+
+            queryParams[parts[0]] = parts[1];
         }
 
         return queryParams;
     }
-    private static async Task<IEnumerable<KeyValuePair<string,string>>> ReadHeadersAsync(PipeReader reader)
+
+    private async Task<IEnumerable<KeyValuePair<string, string>>> ReadHeadersAsync(PipeReader reader)
     {
-        var headers = new Dictionary<string, string>();
-        
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
         while (true)
         {
+            var (header, eof) = await ReadLine(reader, Delimiter);
 
-            var (header, eof) = await ReadLine(reader, Delimiter); 
             if (header == "")
             {
+                _logger.Debug($"Finished reading headers. Count={headers.Count}");
                 return headers;
             }
+
             var headerDelimiterPos = header.IndexOf(':');
             if (headerDelimiterPos > 0)
             {
-                var headerName = header.Substring(0, headerDelimiterPos);
-                var value = header.Substring(headerDelimiterPos + 1).Trim();
-                if (headers.TryGetValue(headerName, out var headerValue))
+                var headerName = header[..headerDelimiterPos];
+                var value = header[(headerDelimiterPos + 1)..].Trim();
+
+                if (headers.ContainsKey(headerName))
                 {
-                    Console.WriteLine($"{headerName} already exists");
+                    _logger.Info("Duplicate header encountered: {headerName}");
                 }
-                headers.Add(headerName, value);
+
+                headers[headerName] = value;
+            }
+            else
+            {
+                _logger.Debug($"Skipping malformed header line: {header}");
             }
 
             if (eof)
             {
+                _logger.Debug("Reached EOF while reading headers");
                 return headers;
             }
         }
     }
 
-    static async Task<(string line, bool EOF)> ReadLine(PipeReader reader, byte[] delimiter)
+    private async Task<(string line, bool EOF)> ReadLine(PipeReader reader, byte[] delimiter)
     {
         var res = await reader.ReadAsync();
         var buf = res.Buffer;
         var (line, pos) = ReadLineFromBuffer(buf, delimiter);
         var eof = res.IsCompleted && buf.Length - pos.GetInteger() == 0;
-        var lineString = Encoding.ASCII.GetString(line);
+        var lineString = Encoding.ASCII.GetString(line.ToArray());
         reader.AdvanceTo(pos);
         return (lineString, eof);
     }
 
-    static (ReadOnlySequence<byte>, SequencePosition) ReadLineFromBuffer(
+    private static (ReadOnlySequence<byte>, SequencePosition) ReadLineFromBuffer(
         ReadOnlySequence<byte> buffer,
         ReadOnlySpan<byte> delimiter)
     {
@@ -134,19 +165,5 @@ public class HttpParser : IHttpParser
         }
 
         return (buffer, buffer.End);
-    }
-    public static void ParseBody(string body)
-    {
-        
-    }
-
-    static void ParseFormData(string body)
-    {
-
-    }
-
-    static void ParseFormUrlEncodedContent(string body)
-    {
-
     }
 }

@@ -1,11 +1,13 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using http_server.helpers;
 
 namespace http_server.Router;
 
 public class RouteHandler : IRouteHandler
 {
     private Dictionary<string, Dictionary<string, MethodInfo>> _routesByMethod = new();
+    private ILog _log = new Log();
 
     public RouteHandler()
     {
@@ -63,7 +65,7 @@ public class RouteHandler : IRouteHandler
                 
                 if (attribute != null)
                 {
-                    Console.WriteLine($"Found Route: {method.Name} at {attribute.Path} with {attribute.Method}");
+                    _log.Info($"Found Route: {method.Name} at {attribute.Path} with {attribute.Method}");
                     this.TryRegisterRoute(attribute.Method, attribute.Path, method.CreateDelegate<Action<RouterContext>>());
                 }
             }

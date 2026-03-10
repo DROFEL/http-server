@@ -19,6 +19,7 @@ public class HttpServer : IAsyncDisposable
 
     private readonly ITcpConnectionAccepter _accepter;
     private readonly IRouteHandler _routeHandler;
+    private readonly IHttpParser _parser;
     private readonly ILog _log;
     private readonly ConnectionHandler _connectionHandler;
     private readonly X509Certificate2? _certificate;
@@ -38,6 +39,7 @@ public class HttpServer : IAsyncDisposable
         _log = log;
         _connectionHandler = connectionHandler;
         _certificate = certificate;
+        _parser = new HttpParser();
 
         _ = typeof(http_server.ServerMetrics.PrometheusMetrics);
     }
@@ -80,7 +82,7 @@ public class HttpServer : IAsyncDisposable
     private async Task StartAsync()
     {
         _accepter.Start();
-        _log.WriteLine("Server started");
+        _log.Info("Server started");
         while (!_cts.IsCancellationRequested)
         {
             var stream = await _accepter.AcceptStreamAsync();
@@ -96,7 +98,7 @@ public class HttpServer : IAsyncDisposable
 
         try
         {
-            _log.WriteLine("Connection opened");
+            _log.Info("Connection opened");
             using (client)
             {
                 await using var net = client.GetStream();
@@ -112,7 +114,7 @@ public class HttpServer : IAsyncDisposable
                 var reader = PipeReader.Create(wire);
                 var writer = PipeWriter.Create(wire);
                 var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-                var httpRequest = await HttpParser.ParseRequest(reader);
+                var httpRequest = await _parser.ParseRequest(reader);
 
                 HttpServerMetrics.RequestsTotal.Inc();
 
@@ -124,7 +126,7 @@ public class HttpServer : IAsyncDisposable
         catch (Exception e)
         {
             HttpServerMetrics.RequestsFailed.Inc();
-            _log.WriteLine($"Request failed: {e.Message}");
+            _log.Info($"Request failed: {e.Message}");
             var userErrorHttpResponse = new HttpResponse(400);
             await client.GetStream().WriteAsync(userErrorHttpResponse.FormatResponseAsByteArray(), token);
         }

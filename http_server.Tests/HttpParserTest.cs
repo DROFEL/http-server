@@ -6,13 +6,14 @@ namespace http_server.Tests;
 
 public class HttpParserTest
 {
+    private IHttpParser _parser = new HttpParser();
     [TestCase("GET /tes", HttpVersion.Http09)]
     [TestCase("GET /test\r\n", HttpVersion.Http09)]
     [TestCase("GET /test HTTP/1.0\r\n\r\n", HttpVersion.Http10)]
     [TestCase("GET /test HTTP/1.1\r\n\r\n", HttpVersion.Http11)]
     public async Task Parses_Http_Version(string rawRequest, HttpVersion expectedVersion)
     {
-        var request = await HttpParser.ParseRequest(CreateTextPipeReader(rawRequest));
+        var request = await _parser.ParseRequest(CreateTextPipeReader(rawRequest));
         Assert.That(request.HttpVersion, Is.EqualTo(expectedVersion));
     }
     
@@ -28,7 +29,7 @@ public class HttpParserTest
             $"{rawMethod} /test HTTP/1.1\r\n" +
             "\r\n";
 
-        var request = await HttpParser.ParseRequest(CreateTextPipeReader(rawRequest));
+        var request = await _parser.ParseRequest(CreateTextPipeReader(rawRequest));
 
         Assert.That(request.Method, Is.EqualTo(expectedMethod));
     }
@@ -41,7 +42,7 @@ public class HttpParserTest
             "Host: localhost\r\n" +
             "User-Agent: TestClient\r\n" +
             "\r\n";
-        var request = await HttpParser.ParseRequest(CreateTextPipeReader(rawRequest));
+        var request = await _parser.ParseRequest(CreateTextPipeReader(rawRequest));
         Assert.Multiple(() =>
         {
             Assert.That(request.Headers["Host"], Is.EqualTo("localhost"));
@@ -59,7 +60,7 @@ public class HttpParserTest
             "User-Agent: TestClient\r\n" +
             "\r\n\r\n" +
             "Some body goes inhere";
-        var request = await HttpParser.ParseRequest(CreateTextPipeReader(rawRequest));
+        var request = await _parser.ParseRequest(CreateTextPipeReader(rawRequest));
         Assert.Multiple(() =>
         {
             Assert.That(request.Headers["Host"], Is.EqualTo("localhost"));
@@ -75,7 +76,7 @@ public class HttpParserTest
             "Host localhost\r\n" +
             "User-Agent: TestClient\r\n" +
             "\r\n";
-        var request = await HttpParser.ParseRequest(CreateTextPipeReader(rawRequest));
+        var request = await _parser.ParseRequest(CreateTextPipeReader(rawRequest));
         Assert.Multiple(() =>
         {
             Assert.That(request.Headers["User-Agent"], Is.EqualTo("TestClient"));
@@ -88,7 +89,7 @@ public class HttpParserTest
         var rawRequest =
             "GET /test HTTP/1.1\r\n" +
             "User-Agent: TestClient";
-        var request = await HttpParser.ParseRequest(CreateTextPipeReader(rawRequest));
+        var request = await _parser.ParseRequest(CreateTextPipeReader(rawRequest));
         Assert.Multiple(() =>
         {
             Assert.That(request.Headers["User-Agent"], Is.EqualTo("TestClient"));
@@ -100,7 +101,7 @@ public class HttpParserTest
     {
         var rawRequest =
             "GET /test?someParam=1&anotherParam=Param HTTP/1.1\r\n";
-        var request = await HttpParser.ParseRequest(CreateTextPipeReader(rawRequest));
+        var request = await _parser.ParseRequest(CreateTextPipeReader(rawRequest));
         Assert.Multiple(() =>
         {
             Assert.That(request.Headers.Count, Is.EqualTo(0));
