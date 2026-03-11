@@ -6,7 +6,7 @@ namespace http_server.Router;
 
 public class RouteHandler : IRouteHandler
 {
-    private Dictionary<string, Dictionary<string, MethodInfo>> _routesByMethod = new();
+    private TrieRouteMatcher<Dictionary<HttpMethod, Action<RouterContext>>> _routesByMethod;
     private ILog _log = new Log();
 
     public RouteHandler()
@@ -14,23 +14,34 @@ public class RouteHandler : IRouteHandler
         FindAndRegisterMethodsWithAttribute();
     }
     
-    public bool TryMatchRoute(HttpMethod method, string path, out MethodInfo routeMethod)
+    public bool TryMatchRoute(HttpMethod method, string path, out Action<RouterContext> routeMethod)
     {
-        routeMethod = null;
-        return _routesByMethod.TryGetValue(method.ToString(), out var methods) &&
-               methods.TryGetValue(path, out routeMethod);
+        routeMethod = default;
+        return _routesByMethod.TryMatchRoute(method.ToString(), out var methods) &&
+               methods.TryGetValue(method, out routeMethod);
     }
 
     public bool TryRegisterRoute(string method, string path, Action<RouterContext> handler)
     {
-
-        return true;
+        return false;
     }
     
     public bool TryRegisterRoute(HttpMethod method, string path, Action<RouterContext> handler)
     {
+        _routesByMethod.TryMatchRoute(path, out var route);
+        if (route != null && route.TryGetValue(method, out var methodInfo))
+        {
+            route.Add(method, handler);
 
-        return true;
+        }
+        else if (route == null)
+        {
+            var dict = new Dictionary<HttpMethod, Action<RouterContext>>();
+            dict.Add(method, handler);
+            _routesByMethod.TryAddRoute(path, dict);
+        }
+
+        return false;
     }
     
     private void FindAndRegisterMethodsWithAttribute()

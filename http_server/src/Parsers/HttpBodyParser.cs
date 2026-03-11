@@ -4,7 +4,7 @@ using http_server.helpers;
 
 namespace http_server.Parsers;
 
-public class HttpBodyParser
+public class HttpBodyParser : IHttpBodyParser
 {
     public static async Task<string> ParseRequest(HttpRequest request, PipeReader reader)
     {

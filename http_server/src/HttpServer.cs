@@ -91,53 +91,6 @@ public class HttpServer : IAsyncDisposable
         }
     }
 
-    private async Task HandleConnectionAsync(TcpClient client, CancellationToken token = default)
-    {
-        HttpServerMetrics.ActiveConnections.Inc();
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-
-        try
-        {
-            _log.Info("Connection opened");
-            using (client)
-            {
-                await using var net = client.GetStream();
-
-                Stream wire = net;
-                if (_certificate is not null)
-                {
-                    await using var ssl = new SslStream(net, leaveInnerStreamOpen: false);
-                    await ssl.AuthenticateAsServerAsync(_certificate);
-                    wire = ssl;
-                }
-
-                var reader = PipeReader.Create(wire);
-                var writer = PipeWriter.Create(wire);
-                var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-                var httpRequest = await _parser.ParseRequest(reader);
-
-                HttpServerMetrics.RequestsTotal.Inc();
-
-                var context = new ConnectionContext(reader, writer, httpRequest, cts.Token);
-                var handler = HttpHandlerFactory.Create(httpRequest.HttpVersion);
-                await handler.Accept(context);
-            }
-        }
-        catch (Exception e)
-        {
-            HttpServerMetrics.RequestsFailed.Inc();
-            _log.Info($"Request failed: {e.Message}");
-            var userErrorHttpResponse = new HttpResponse(400);
-            await client.GetStream().WriteAsync(userErrorHttpResponse.FormatResponseAsByteArray(), token);
-        }
-        finally
-        {
-            stopwatch.Stop();
-            HttpServerMetrics.RequestDuration.Observe(stopwatch.Elapsed.TotalSeconds);
-            HttpServerMetrics.ActiveConnections.Dec();
-        }
-    }
-
     public async ValueTask DisposeAsync()
     {
         await Dispose();

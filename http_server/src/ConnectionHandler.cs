@@ -16,6 +16,8 @@ public class ConnectionHandler
     }
     public async Task HandleConnectionAsync(Stream wire, CancellationToken token = default)
     {
+        HttpServerMetrics.ActiveConnections.Inc();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         _log.Debug("Connection opened");
         await using (wire)
         {
@@ -37,17 +39,27 @@ public class ConnectionHandler
                 var context = new ConnectionContext(reader, writer, httpRequest, cts.Token);
                 var handler = HttpHandlerFactory.Create(httpRequest.HttpVersion);
                 _log.Debug($"Request on version {httpRequest.HttpVersion.ToString()} to {httpRequest.Path} with {httpRequest.Method}.");
+                
+                HttpServerMetrics.RequestsTotal.Inc();
                 await handler.Accept(context);
             }
             catch (Exception e)
             {
-                _log.Info("Invalid request response: 400");
-                var userErrorHttpResponse = new HttpResponse(400);
-                await writer.WriteAsync(userErrorHttpResponse.FormatResponseAsByteArray(), token);
+                HttpServerMetrics.RequestsFailed.Inc();
+                _log.Info($"Request failed: {e.Message}");
+                var userErrorHttpResponse = new HttpResponse(500);
+                await wire.WriteAsync(userErrorHttpResponse.FormatResponseAsByteArray(), token);
                 return;
+            }
+            finally
+            {
+                stopwatch.Stop();
+                HttpServerMetrics.RequestDuration.Observe(stopwatch.Elapsed.TotalSeconds);
+                HttpServerMetrics.ActiveConnections.Dec();
             }
 
         }
+        
         
     }
 }
