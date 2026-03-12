@@ -6,7 +6,7 @@ namespace http_server.Router;
 
 public class RouteHandler : IRouteHandler
 {
-    private RadixRouteMatcher<Dictionary<HttpMethod, Action<RouterContext>>> _routesByMethod;
+    private RadixRouteMatcher<Dictionary<HttpMethod, Action<RouterContext>>> _routesByMethod = new();
     private ILog _log = new Log();
 
     public RouteHandler()
@@ -17,7 +17,7 @@ public class RouteHandler : IRouteHandler
     public bool TryMatchRoute(HttpMethod method, string path, out Action<RouterContext> routeMethod)
     {
         routeMethod = default;
-        return _routesByMethod.TryMatchRoute(method.ToString(), out var methods) &&
+        return _routesByMethod.TryMatchRoute(path, out var methods) &&
                methods.TryGetValue(method, out routeMethod);
     }
 
@@ -29,18 +29,19 @@ public class RouteHandler : IRouteHandler
     public bool TryRegisterRoute(HttpMethod method, string path, Action<RouterContext> handler)
     {
         _routesByMethod.TryMatchRoute(path, out var route);
-        if (route != null && route.TryGetValue(method, out var methodInfo))
+        if (route != null && !route.TryGetValue(method, out var methodInfo))
         {
-            route.Add(method, handler);
+            return route.TryAdd(method, handler);
 
         }
         else if (route == null)
         {
             var dict = new Dictionary<HttpMethod, Action<RouterContext>>();
             dict.Add(method, handler);
-            _routesByMethod.TryAddRoute(path, dict);
+            return _routesByMethod.TryAddRoute(path, dict);
         }
 
+        //If endpoint exists
         return false;
     }
     
@@ -73,14 +74,37 @@ public class RouteHandler : IRouteHandler
             foreach (var method in methodsWithAttribute)
             {
                 var attribute = method.GetCustomAttribute<Route>();
-                
-                if (attribute != null)
+
+                if (attribute == null)
+                    continue;
+
+                if (!IsValidRouteMethod(method))
                 {
-                    _log.Info($"Found Route: {method.Name} at {attribute.Path} with {attribute.Method}");
-                    this.TryRegisterRoute(attribute.Method, attribute.Path, method.CreateDelegate<Action<RouterContext>>());
+                    _log.Warning($"Skipping route {method.Name}: incompatible signature");
+                    continue;
                 }
+
+                _log.Info($"Found Route: {method.Name} at {attribute.Path} with {attribute.Method}");
+                var handler = method.CreateDelegate<Action<RouterContext>>();
+                TryRegisterRoute(attribute.Method, attribute.Path, handler);
             }
         }
     }
-    
+    private static bool IsValidRouteMethod(MethodInfo method)
+    {
+        if (method.ReturnType != typeof(void))
+            return false;
+
+        var parameters = method.GetParameters();
+        if (parameters.Length != 1)
+            return false;
+
+        if (parameters[0].ParameterType != typeof(RouterContext))
+            return false;
+
+        if (!method.IsStatic)
+            return false;
+
+        return true;
+    }
 }
