@@ -6,7 +6,7 @@ namespace http_server.Router;
 
 public class RouteHandler : IRouteHandler
 {
-    private TrieRouteMatcher<Dictionary<HttpMethod, Action<RouterContext>>> _routesByMethod;
+    private RadixRouteMatcher<Dictionary<HttpMethod, Action<RouterContext>>> _routesByMethod;
     private ILog _log = new Log();
 
     public RouteHandler()

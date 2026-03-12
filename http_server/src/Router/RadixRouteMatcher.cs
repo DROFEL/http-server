@@ -2,7 +2,7 @@ using System.Text;
 
 namespace http_server.Router;
 
-public class TrieRouteMatcher<T>
+public class RadixRouteMatcher<T>
 {
     private readonly char delimiter= '/';
     private Node<T> root = new Node<T>(default(T));
@@ -15,7 +15,7 @@ public class TrieRouteMatcher<T>
         // Special case for root route registering
         if (path.Equals("/", StringComparison.OrdinalIgnoreCase))
         {
-            if (root.Data != null)
+            if (root.isRoute)
                 return false;
             
             root.Data = data;
@@ -29,19 +29,23 @@ public class TrieRouteMatcher<T>
 
         while (NextSegment(pathSpan, out ReadOnlySpan<char> segment, out pathSpan))
         {
+            //Main case if node with key doesnt exist create one
             if (node.Next.TryGetValue(segment.ToString(), out var parentNode))
             {
-                if (String.IsNullOrEmpty(parentNode.suffix))
+                //If uncompressed node just continue
+                if (String.IsNullOrEmpty(parentNode.suffix) && !pathSpan.IsEmpty)
                 {
                     node = parentNode;
                     continue;
                 }
                 NextSegment(parentNode.suffix, out var parentSegment, out var parentSuffix);
+                // Compression/suffix match
                 if(pathSpan.StartsWith(parentNode.suffix, StringComparison.Ordinal))
                 {
-                    // Path already exists
                     if (pathSpan.Equals(parentNode.suffix, StringComparison.Ordinal))
                     {
+                        //exact match but its a route already
+                        //or update non route to a route
                         if (parentNode.isRoute)
                         {
                             return false;   
@@ -55,14 +59,15 @@ public class TrieRouteMatcher<T>
                     }
                     else
                     {
-                        node.InsertRoute(data, segment, pathSpan);
-                        return true;
+                        pathSpan = pathSpan[parentNode.suffix.Length..];
+                        node = parentNode;
+                        continue;
                     }
-                
-                    //If not then take node suffix and continue searching
                 }
                 else
                 {
+                    //this is where tree diverges on insert so need to move current node to a child and then update
+                    // With either parent node (insert between old and its parent) or append new sibling next to old.
                     var dict = parentNode.Next;
                     parentNode.Next = new ();
 
@@ -93,7 +98,7 @@ public class TrieRouteMatcher<T>
             }
         }
 
-        return false;
+        throw new InvalidOperationException("Unreachable code in TryAddRoute.");
     }
 
     //TODO add path params and wildcards
@@ -114,26 +119,28 @@ public class TrieRouteMatcher<T>
         ReadOnlySpan<char> pathSpan = path.AsSpan();
         while (node != null && NextSegment(pathSpan, out ReadOnlySpan<char> segment, out pathSpan))
         {
-            // !!! Updating node so that if no match next iter exits !!!
-            //TODO consider other solutions without allocations
-            if (node.Next.TryGetValue(segment.ToString(), out node)
-                && pathSpan.StartsWith(node.suffix, StringComparison.Ordinal))
+            // !!! Updating node so that if suffix match next iter exits !!! 
+            //TODO consider other solutions without allocations (.ToString())
+            if (!node.Next.TryGetValue(segment.ToString(), out node))
+                return false;
+            
+            // Checking if full match with the route
+            if (node.isRoute &&
+                (
+                    (pathSpan.IsEmpty && string.IsNullOrEmpty(node.suffix)) ||
+                    (!string.IsNullOrEmpty(node.suffix) &&
+                     pathSpan.Equals(node.suffix, StringComparison.Ordinal))
+                ))
             {
-                // Checking if full match with the route
-                if (node.isRoute &&
-                    (
-                        (pathSpan.IsEmpty && string.IsNullOrEmpty(node.suffix)) ||
-                        (!string.IsNullOrEmpty(node.suffix) &&
-                         pathSpan.Equals(node.suffix, StringComparison.Ordinal))
-                    ))
-                {
-                    route = node.Data;
-                    return true;
-                }
-                
-                //If not then take node suffix and continue searching
-                pathSpan = String.IsNullOrEmpty(node.suffix) ? pathSpan : pathSpan[node.suffix.Length..];
+                route = node.Data;
+                return true;
             }
+
+            //If not full match but suffix matches take node suffix and continue searching
+            if (!pathSpan.StartsWith(node.suffix, StringComparison.Ordinal))
+                return false;
+            
+            pathSpan = String.IsNullOrEmpty(node.suffix) ? pathSpan : pathSpan[node.suffix.Length..];
         }
         return false;
     }
@@ -192,39 +199,39 @@ public class TrieRouteMatcher<T>
         public override string ToString()
         {
             var sb = new StringBuilder();
-            WriteTo(sb, "", true, "root");
+            sb.Append($"Suffix: {suffix} Is Route: {isRoute}");
             return sb.ToString();
         }
 
-        private void WriteTo(StringBuilder sb, string indent, bool isLast, string label)
-        {
-            sb.Append(indent);
-
-            if (!string.IsNullOrEmpty(indent))
-                sb.Append(isLast ? "\\-- " : "|-- ");
-
-            sb.Append(label);
-
-            if (!string.IsNullOrEmpty(suffix))
-                sb.Append(" [").Append(suffix).Append(']');
-
-            if (isRoute)
-                sb.Append(" *");
-
-            sb.AppendLine();
-
-            var children = Next.ToList();
-            for (int i = 0; i < children.Count; i++)
-            {
-                var child = children[i];
-                bool childIsLast = i == children.Count - 1;
-
-                child.Value.WriteTo(
-                    sb,
-                    indent + (string.IsNullOrEmpty(indent) ? "" : (isLast ? "    " : "|   ")),
-                    childIsLast,
-                    child.Key);
-            }
-        }
+        // private void WriteTo(StringBuilder sb, string indent, bool isLast, string label)
+        // {
+        //     sb.Append(indent);
+        //
+        //     if (!string.IsNullOrEmpty(indent))
+        //         sb.Append(isLast ? "\\-- " : "|-- ");
+        //
+        //     sb.Append(label);
+        //
+        //     if (!string.IsNullOrEmpty(suffix))
+        //         sb.Append(" [").Append(suffix).Append(']');
+        //
+        //     if (isRoute)
+        //         sb.Append(" *");
+        //
+        //     sb.AppendLine();
+        //
+        //     var children = Next.ToList();
+        //     for (int i = 0; i < children.Count; i++)
+        //     {
+        //         var child = children[i];
+        //         bool childIsLast = i == children.Count - 1;
+        //
+        //         child.Value.WriteTo(
+        //             sb,
+        //             indent + (string.IsNullOrEmpty(indent) ? "" : (isLast ? "    " : "|   ")),
+        //             childIsLast,
+        //             child.Key);
+        //     }
+        // }
     }
 }
