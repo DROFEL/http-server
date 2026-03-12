@@ -29,25 +29,66 @@ public class TrieRouteMatcher<T>
 
         while (NextSegment(pathSpan, out ReadOnlySpan<char> segment, out pathSpan))
         {
-            if (node.Next.TryGetValue(segment.ToString(), out var nextNode))
+            if (node.Next.TryGetValue(segment.ToString(), out var parentNode))
             {
-
-                // Path already exists
-                if (pathSpan.Length == nextNode.segment.Length && nextNode.isRoute)
+                if (String.IsNullOrEmpty(parentNode.suffix))
                 {
-                    return false;   
+                    node = parentNode;
+                    continue;
                 }
+                NextSegment(parentNode.suffix, out var parentSegment, out var parentSuffix);
+                if(pathSpan.StartsWith(parentNode.suffix, StringComparison.Ordinal))
+                {
+                    // Path already exists
+                    if (pathSpan.Equals(parentNode.suffix, StringComparison.Ordinal))
+                    {
+                        if (parentNode.isRoute)
+                        {
+                            return false;   
+                        }
+                        else
+                        {
+                            parentNode.Data = data;
+                            parentNode.isRoute = true;
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        node.InsertRoute(data, segment, pathSpan);
+                        return true;
+                    }
                 
-                //If not then take node suffix and continue searching
-                pathSpan = pathSpan[nextNode.segment.Length..];
-                node = nextNode;
+                    //If not then take node suffix and continue searching
+                }
+                else
+                {
+                    var dict = parentNode.Next;
+                    parentNode.Next = new ();
+
+                    var movedNode = parentNode.InsertRoute(parentNode.Data, parentSegment, parentSuffix);
+                    movedNode.Next = dict;
+
+                    if (pathSpan.IsEmpty)
+                    {
+                        parentNode.isRoute = true;
+                        parentNode.Data = data;
+                        parentNode.suffix = default;
+                        return true;
+                    }
+                    else
+                    {
+                        parentNode.isRoute = false;
+                        parentNode.Data = default;
+                        parentNode.suffix = default;
+                        node = parentNode;
+                    }
+                }
+
             }
             else
             {
-                var newNode = new Node<T>(data);
-                newNode.isRoute = true;
-                newNode.segment = pathSpan.ToString();
-                node.Next.Add(segment.ToString(), newNode);
+                node.InsertRoute(data, segment.ToString(), pathSpan.ToString());
                 return true;
             }
         }
@@ -76,17 +117,22 @@ public class TrieRouteMatcher<T>
             // !!! Updating node so that if no match next iter exits !!!
             //TODO consider other solutions without allocations
             if (node.Next.TryGetValue(segment.ToString(), out node)
-                && pathSpan.StartsWith(node.segment, StringComparison.Ordinal))
+                && pathSpan.StartsWith(node.suffix, StringComparison.Ordinal))
             {
                 // Checking if full match with the route
-                if (pathSpan.Length == node.segment.Length && node.isRoute)
+                if (node.isRoute &&
+                    (
+                        (pathSpan.IsEmpty && string.IsNullOrEmpty(node.suffix)) ||
+                        (!string.IsNullOrEmpty(node.suffix) &&
+                         pathSpan.Equals(node.suffix, StringComparison.Ordinal))
+                    ))
                 {
                     route = node.Data;
-                    return true;   
+                    return true;
                 }
                 
                 //If not then take node suffix and continue searching
-                pathSpan = pathSpan[node.segment.Length..];
+                pathSpan = String.IsNullOrEmpty(node.suffix) ? pathSpan : pathSpan[node.suffix.Length..];
             }
         }
         return false;
@@ -126,12 +172,21 @@ public class TrieRouteMatcher<T>
         public T Data;
         public Dictionary<string, Node<T>> Next;
         public bool isRoute;
-        public string segment;
+        public string suffix;
         public Node(T data)
         {
             isRoute = false;
             Data = data;
             Next = new(StringComparer.Ordinal);
+        }
+
+        public Node<T> InsertRoute(T data, ReadOnlySpan<char> segment, ReadOnlySpan<char> suffix)
+        {
+            var newNode = new Node<T>(data);
+            newNode.isRoute = true;
+            newNode.suffix = suffix.ToString();
+            this.Next.TryAdd(segment.ToString(), newNode);
+            return newNode;
         }
 
         public override string ToString()
@@ -150,8 +205,8 @@ public class TrieRouteMatcher<T>
 
             sb.Append(label);
 
-            if (!string.IsNullOrEmpty(segment))
-                sb.Append(" [").Append(segment).Append(']');
+            if (!string.IsNullOrEmpty(suffix))
+                sb.Append(" [").Append(suffix).Append(']');
 
             if (isRoute)
                 sb.Append(" *");

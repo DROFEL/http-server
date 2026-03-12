@@ -89,7 +89,14 @@ public class TrieRouteMatcherTests
         {
             ("/foo/bar", "foobar"),
             ("/foo/baz", "foobaz"),
-        }).SetName("Shared_first_segment");
+        }).SetName("Shared_first_segment").SetDescription("Also test same size different segments");
+        
+        yield return new TestCaseData(new List<(string path, string value)>
+        {
+            ("/foo/bar", "foobar"),
+            ("/foo", "foo"),
+            ("/foo/baz", "foobaz"),
+        }).SetName("Shared_first_segment_route").SetDescription("Test if common node is a route");
 
         yield return new TestCaseData(new List<(string path, string value)>
         {
@@ -102,6 +109,14 @@ public class TrieRouteMatcherTests
             ("/api/v1/users", "users"),
             ("/api/v1/get/users/verified", "verified"),
         }).SetName("Compressed_api_v1_prefix");
+        
+        yield return new TestCaseData(new List<(string path, string value)>
+        {
+            ("/api/v1/users", "users"),
+            ("/api/v1/get/users/verified", "verified"),
+            ("/api/v2/users", "users"),
+            ("/api/v2/get/users/verified", "verified"),
+        }).SetName("Compressed_api_v2_prefix");
 
         yield return new TestCaseData(new List<(string path, string value)>
         {
@@ -143,5 +158,12 @@ public class TrieRouteMatcherTests
             ("/a/b/c", "abc"),
             ("/a/b/c/d", "abcd"),
         }).SetName("Deep_nested_routes");
+        
+        yield return new TestCaseData(new List<(string path, string value)>
+        {
+            ("api/v1/users/verified", "verified"),
+            ("api/v1/products", "products"),
+            
+        }).SetName("New category").SetDescription("Test changing suffixes");
     }
 }
