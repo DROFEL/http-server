@@ -2,10 +2,11 @@ using System.Text;
 
 namespace http_server.Router;
 
-public class RadixRouteMatcher<T>
+internal class RadixRouteMatcher<T> : IRouteMatcher<T>, IRouteMatcherBuilder<T>
 {
     private readonly char delimiter= '/';
-    private Node<T> root = new Node<T>(default(T));
+    private RadixNode<T> root = new RadixNode<T>(default(T));
+    internal RadixNode<T> Root => root;
 
     public bool TryAddRoute(string path, T data)
     {
@@ -24,25 +25,25 @@ public class RadixRouteMatcher<T>
         }
 
         var node = root;
-        var pathSpan = path.AsSpan();
-        pathSpan = pathSpan.Trim(delimiter);
+        var suffix = path.AsSpan();
+        suffix = suffix.Trim(delimiter);
 
-        while (NextSegment(pathSpan, out ReadOnlySpan<char> segment, out pathSpan))
+        while (NextSegment(suffix, out ReadOnlySpan<char> segment, out suffix))
         {
             //Main case if node with key doesnt exist create one
             if (node.Next.TryGetValue(segment.ToString(), out var parentNode))
             {
                 //If uncompressed node just continue
-                if (String.IsNullOrEmpty(parentNode.suffix) && !pathSpan.IsEmpty)
+                if (String.IsNullOrEmpty(parentNode.suffix) && !suffix.IsEmpty)
                 {
                     node = parentNode;
                     continue;
                 }
                 NextSegment(parentNode.suffix, out var parentSegment, out var parentSuffix);
                 // Compression/suffix match
-                if(pathSpan.StartsWith(parentNode.suffix, StringComparison.Ordinal))
+                if(suffix.StartsWith(parentNode.suffix, StringComparison.Ordinal))
                 {
-                    if (pathSpan.Equals(parentNode.suffix, StringComparison.Ordinal))
+                    if (suffix.Equals(parentNode.suffix, StringComparison.Ordinal))
                     {
                         //exact match but its a route already
                         //or update non route to a route
@@ -59,7 +60,7 @@ public class RadixRouteMatcher<T>
                     }
                     else
                     {
-                        pathSpan = pathSpan[parentNode.suffix.Length..];
+                        suffix = suffix[parentNode.suffix.Length..];
                         node = parentNode;
                         continue;
                     }
@@ -74,7 +75,7 @@ public class RadixRouteMatcher<T>
                     var movedNode = parentNode.InsertRoute(parentNode.Data, parentSegment, parentSuffix);
                     movedNode.Next = dict;
 
-                    if (pathSpan.IsEmpty)
+                    if (suffix.IsEmpty)
                     {
                         parentNode.isRoute = true;
                         parentNode.Data = data;
@@ -93,12 +94,17 @@ public class RadixRouteMatcher<T>
             }
             else
             {
-                node.InsertRoute(data, segment.ToString(), pathSpan.ToString());
+                node.InsertRoute(data, segment.ToString(), suffix.ToString());
                 return true;
             }
         }
 
         throw new InvalidOperationException("Unreachable code in TryAddRoute.");
+    }
+
+    public IRouteMatcher<T> Compile()
+    {
+        return this;
     }
 
     //TODO add path params and wildcards
@@ -174,22 +180,22 @@ public class RadixRouteMatcher<T>
         return root.ToString();
     }
 
-    private class Node<T>
+    internal sealed class RadixNode<T>
     {
         public T Data;
-        public Dictionary<string, Node<T>> Next;
+        public Dictionary<string, RadixNode<T>> Next;
         public bool isRoute;
         public string suffix;
-        public Node(T data)
+        public RadixNode(T data)
         {
             isRoute = false;
             Data = data;
             Next = new(StringComparer.Ordinal);
         }
 
-        public Node<T> InsertRoute(T data, ReadOnlySpan<char> segment, ReadOnlySpan<char> suffix)
+        public RadixNode<T> InsertRoute(T data, ReadOnlySpan<char> segment, ReadOnlySpan<char> suffix)
         {
-            var newNode = new Node<T>(data);
+            var newNode = new RadixNode<T>(data);
             newNode.isRoute = true;
             newNode.suffix = suffix.ToString();
             this.Next.TryAdd(segment.ToString(), newNode);

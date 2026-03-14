@@ -14,7 +14,7 @@ public class RouteHandlerTest
         Action<RouterContext> handler = _ => { };
 
         var registered = sut.TryRegisterRoute(HttpMethod.Get, "/users", handler);
-        var matched = sut.TryMatchRoute(HttpMethod.Get, "/users", out var foundHandler);
+        var matched = sut.TryResolve(HttpMethod.Get, "/users", out var foundHandler);
 
         Assert.That(registered, Is.True);
         Assert.That(matched, Is.True);
@@ -26,7 +26,7 @@ public class RouteHandlerTest
     {
         var sut = new RouteHandler();
 
-        var matched = sut.TryMatchRoute(HttpMethod.Get, "/missing", out var handler);
+        var matched = sut.TryResolve(HttpMethod.Get, "/missing", out var handler);
 
         Assert.That(matched, Is.False);
         Assert.That(handler, Is.Null);
@@ -40,7 +40,7 @@ public class RouteHandlerTest
         Action<RouterContext> getHandler = _ => { };
         sut.TryRegisterRoute(HttpMethod.Get, "/users", getHandler);
 
-        var matched = sut.TryMatchRoute(HttpMethod.Post, "/users", out var foundHandler);
+        var matched = sut.TryResolve(HttpMethod.Post, "/users", out var foundHandler);
 
         Assert.That(matched, Is.False);
         Assert.That(foundHandler, Is.Null);
@@ -72,8 +72,8 @@ public class RouteHandlerTest
         var getRegistered = sut.TryRegisterRoute(HttpMethod.Get, "/users", getHandler);
         var postRegistered = sut.TryRegisterRoute(HttpMethod.Post, "/users", postHandler);
 
-        var getMatched = sut.TryMatchRoute(HttpMethod.Get, "/users", out var foundGet);
-        var postMatched = sut.TryMatchRoute(HttpMethod.Post, "/users", out var foundPost);
+        var getMatched = sut.TryResolve(HttpMethod.Get, "/users", out var foundGet);
+        var postMatched = sut.TryResolve(HttpMethod.Post, "/users", out var foundPost);
 
         Assert.That(getRegistered, Is.True);
         Assert.That(postRegistered, Is.True);

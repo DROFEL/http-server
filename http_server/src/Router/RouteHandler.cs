@@ -6,19 +6,32 @@ namespace http_server.Router;
 
 public class RouteHandler : IRouteHandler
 {
-    private RadixRouteMatcher<Dictionary<HttpMethod, Action<RouterContext>>> _routesByMethod = new();
-    private ILog _log = new Log();
+    private readonly ILog _log = new Log();
 
-    public RouteHandler()
-    {
-        FindAndRegisterMethodsWithAttribute();
-    }
+    private IRouteMatcherBuilder<Dictionary<HttpMethod, Action<RouterContext>>>? _builder;
+    private IRouteMatcher<Dictionary<HttpMethod, Action<RouterContext>>> _matcher;
+
+    private bool _built;
     
-    public bool TryMatchRoute(HttpMethod method, string path, out Action<RouterContext> routeMethod)
+    public bool TryResolve(HttpMethod method, string path, out Action<RouterContext> routeMethod)
     {
         routeMethod = default;
-        return _routesByMethod.TryMatchRoute(path, out var methods) &&
-               methods.TryGetValue(method, out routeMethod);
+        if (!_matcher.TryMatchRoute(path, out var methods)) 
+            return false;
+        return methods.TryGetValue(method, out routeMethod);
+    }
+
+    public void Build()
+    {
+        if (_built)
+            return;
+
+        if (_builder is null)
+            throw new InvalidOperationException("No route builder available.");
+
+        _matcher = _builder.Compile();
+        _builder = null;
+        _built = true;
     }
 
     public bool TryRegisterRoute(string method, string path, Action<RouterContext> handler)
@@ -28,7 +41,7 @@ public class RouteHandler : IRouteHandler
     
     public bool TryRegisterRoute(HttpMethod method, string path, Action<RouterContext> handler)
     {
-        _routesByMethod.TryMatchRoute(path, out var route);
+        _builder.TryMatchRoute(path, out var route);
         if (route != null && !route.TryGetValue(method, out var methodInfo))
         {
             return route.TryAdd(method, handler);
@@ -38,14 +51,20 @@ public class RouteHandler : IRouteHandler
         {
             var dict = new Dictionary<HttpMethod, Action<RouterContext>>();
             dict.Add(method, handler);
-            return _routesByMethod.TryAddRoute(path, dict);
+            return _builder.TryAddRoute(path, dict);
         }
 
         //If endpoint exists
         return false;
     }
     
-    private void FindAndRegisterMethodsWithAttribute()
+    private void EnsureNotBuilt()
+    {
+        if (_built)
+            throw new InvalidOperationException("Routes have already been built.");
+    }
+    
+    private void DiscoverRoutesFromAttributes()
     {
         var baseDir = AppContext.BaseDirectory;
 
