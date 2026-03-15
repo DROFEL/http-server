@@ -1,6 +1,6 @@
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using http_server.helpers;
+using http_server.Router.RouterResults;
 
 namespace http_server.Router;
 
@@ -8,12 +8,25 @@ public class RouteHandler : IRouteHandler
 {
     private readonly ILog _log = new Log();
 
-    private IRouteMatcherBuilder<Dictionary<HttpMethod, Action<RouterContext>>>? _builder;
-    private IRouteMatcher<Dictionary<HttpMethod, Action<RouterContext>>> _matcher;
+    private IRouteMatcherBuilder<Dictionary<string, IRouteHandler.RouteDelegate>>? _builder;
+    private IRouteMatcher<Dictionary<string, IRouteHandler.RouteDelegate>> _matcher;
 
     private bool _built;
-    
-    public bool TryResolve(HttpMethod method, string path, out Action<RouterContext> routeMethod)
+
+    public RouteHandler(MatcherStrategy strategy = MatcherStrategy.Radix)
+    {
+        switch (strategy)
+        {
+            case MatcherStrategy.Radix:
+                _builder = new RadixRouteMatcher<Dictionary<string, IRouteHandler.RouteDelegate>>();
+                break;
+            case MatcherStrategy.CompiledRadix:
+                break;
+            case MatcherStrategy.Static:
+                break;
+        }
+    }
+    public bool TryResolve(string method, string path, out IRouteHandler.RouteDelegate routeMethod)
     {
         routeMethod = default;
         if (!_matcher.TryMatchRoute(path, out var methods)) 
@@ -34,12 +47,7 @@ public class RouteHandler : IRouteHandler
         _built = true;
     }
 
-    public bool TryRegisterRoute(string method, string path, Action<RouterContext> handler)
-    {
-        return false;
-    }
-    
-    public bool TryRegisterRoute(HttpMethod method, string path, Action<RouterContext> handler)
+    public bool TryRegisterRoute(string method, string path, IRouteHandler.RouteDelegate handler)
     {
         _builder.TryMatchRoute(path, out var route);
         if (route != null && !route.TryGetValue(method, out var methodInfo))
@@ -49,7 +57,7 @@ public class RouteHandler : IRouteHandler
         }
         else if (route == null)
         {
-            var dict = new Dictionary<HttpMethod, Action<RouterContext>>();
+            var dict = new Dictionary<string, IRouteHandler.RouteDelegate>();
             dict.Add(method, handler);
             return _builder.TryAddRoute(path, dict);
         }
@@ -88,11 +96,11 @@ public class RouteHandler : IRouteHandler
         {
             var methodsWithAttribute = from type in assembly.GetTypes()
                 from method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)
-                where method.IsDefined(typeof(Route), false)
+                where method.IsDefined(typeof(HTTPRoute), false)
                 select method;
             foreach (var method in methodsWithAttribute)
             {
-                var attribute = method.GetCustomAttribute<Route>();
+                var attribute = method.GetCustomAttribute<HTTPRoute>();
 
                 if (attribute == null)
                     continue;
@@ -104,7 +112,7 @@ public class RouteHandler : IRouteHandler
                 }
 
                 _log.Info($"Found Route: {method.Name} at {attribute.Path} with {attribute.Method}");
-                var handler = method.CreateDelegate<Action<RouterContext>>();
+                var handler = method.CreateDelegate<IRouteHandler.RouteDelegate>();
                 TryRegisterRoute(attribute.Method, attribute.Path, handler);
             }
         }

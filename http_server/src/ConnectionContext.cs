@@ -7,5 +7,6 @@ public record ConnectionContext(
     PipeReader TransportIn,
     PipeWriter TransportOut,
     HttpRequest HttpRequest,
+    HttpResponse HttpResponse,
     CancellationToken CancellationToken
     );

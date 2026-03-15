@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace http_server.Router;
+namespace http_server.Router.RouterResults;
 
 internal class RadixRouteMatcher<T> : IRouteMatcher<T>, IRouteMatcherBuilder<T>
 {

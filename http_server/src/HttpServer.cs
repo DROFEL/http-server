@@ -1,70 +1,47 @@
-using System.IO.Pipelines;
 using System.Net;
-using System.Net.Security;
-using System.Net.Sockets;
-using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using http_server.helpers;
-using http_server.Handlers;
-using http_server.ServerMetrics;
-using http_server.Parsers;
 using http_server.Router;
-using Prometheus;
 
 namespace http_server;
 
 public class HttpServer : IAsyncDisposable
 {
     public bool IsReady = false;
+    public IRouteHandler Router
+    {
+        get { return _routeHandler; }
+    }
 
-    private readonly ITcpConnectionAccepter _accepter;
-    private readonly IRouteHandler _routeHandler;
-    private readonly IHttpParser _parser;
+    
     private readonly ILog _log;
-    private readonly ConnectionHandler _connectionHandler;
+    private readonly HttpConnectionListener _httpConnectionListener;
+    private readonly IRouteHandler _routeHandler;
     private readonly X509Certificate2? _certificate;
 
     private Task? _loopTask;
     private CancellationTokenSource _cts = new();
 
-    public HttpServer(
-        ITcpConnectionAccepter accepter,
-        IRouteHandler routeHandler,
-        ILog log,
-        ConnectionHandler connectionHandler,
-        X509Certificate2? certificate = null)
+    public HttpServer(IPAddress ip, int port)
     {
-        _accepter = accepter;
-        _routeHandler = routeHandler;
-        _log = log;
-        _connectionHandler = connectionHandler;
-        _certificate = certificate;
-        _parser = new HttpParser();
+        
+        _routeHandler = new RouteHandler();
+        _log = new Log();
+        _httpConnectionListener = new HttpConnectionListener(new TcpConnectionAccepter(ip, port), _routeHandler, _certificate);
+        _certificate = null;
 
         _ = typeof(http_server.ServerMetrics.PrometheusMetrics);
-    }
-    
-    public HttpServer(IPAddress ip, int port)
-        : this(
-            new TcpConnectionAccepter(ip, port),
-            new RouteHandler(),
-            new Log(),
-            new ConnectionHandler())
-    {
     }
 
     public HttpServer(IPAddress ip, int port, X509Certificate2 certificate): this(ip, port)
     {
         this._certificate = certificate;
     }
-
-    public void RegisterController(object controller)
-    {
-    }
+    
     public async Task StopAsync()
     {
         _cts.Cancel();
-        _accepter.Stop();
+        await _httpConnectionListener.StopAsync();
         if (_loopTask != null)
         {
             try { await _loopTask; }
@@ -74,6 +51,8 @@ public class HttpServer : IAsyncDisposable
 
     public Task Start()
     {
+        _routeHandler.Build();
+        
         var startTask = StartAsync();
         this._loopTask = startTask;
         return startTask;
@@ -81,14 +60,8 @@ public class HttpServer : IAsyncDisposable
 
     private async Task StartAsync()
     {
-        _accepter.Start();
+        await _httpConnectionListener.StartAsync(_cts.Token);
         _log.Info("Server started");
-        while (!_cts.IsCancellationRequested)
-        {
-            var stream = await _accepter.AcceptStreamAsync();
-            var connectionCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            Task.Run(() => _connectionHandler.HandleConnectionAsync(stream, connectionCts.Token), connectionCts.Token);
-        }
     }
 
     public async ValueTask DisposeAsync()
@@ -99,7 +72,6 @@ public class HttpServer : IAsyncDisposable
     private async ValueTask Dispose()
     {
         await _cts.CancelAsync();
-        await CastAndDispose(_accepter);
         if (_certificate != null) await CastAndDispose(_certificate);
         if (_loopTask != null) await CastAndDispose(_loopTask);
         await CastAndDispose(_cts);

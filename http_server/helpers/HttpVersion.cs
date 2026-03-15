@@ -1,5 +1,7 @@
 namespace http_server.helpers;
 
+
+
 public enum HttpVersion
 {
     Unknown = 0,
@@ -7,7 +9,7 @@ public enum HttpVersion
     Http10 = 1 << 1,
     Http11 = 1 << 2,
     Http2 = 1 << 3,
-    Http3 = 1 << 4
+    Http3 = 1 << 4,
 }
 [Flags]
 public enum HttpVersionMask
@@ -25,6 +27,10 @@ public static class HttpVersionMaskExtensions
 
 public static class HttpVersionExtensions
 {
+    public static ReadOnlySpan<byte> Http10Bytes => "HTTP/1.0"u8;
+    public static ReadOnlySpan<byte> Http11Bytes => "HTTP/1.1"u8;
+    public static ReadOnlySpan<byte> Http20Bytes => "HTTP/2.0"u8;
+    public static ReadOnlySpan<byte> Http30Bytes => "HTTP/3.0"u8;
     public static Version ToVersion(this HttpVersion v) => v switch
     {
         HttpVersion.Http09 => new Version(0, 9),
@@ -51,5 +57,14 @@ public static class HttpVersionExtensions
         HttpVersion.Http2 => "HTTP/2.0",
         HttpVersion.Http3 => "HTTP/3.0",
         _ => string.Empty
+    };
+    
+    public static ReadOnlySpan<byte> ToReadOnlySpan(this HttpVersion httpVersion) => httpVersion switch
+    {
+        HttpVersion.Http10 => Http10Bytes,
+        HttpVersion.Http11 => Http11Bytes,
+        HttpVersion.Http2 => Http20Bytes,
+        HttpVersion.Http3 => Http30Bytes,
+        _ => ReadOnlySpan<byte>.Empty
     };
 }

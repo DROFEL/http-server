@@ -1,7 +1,9 @@
 ﻿using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using http_server;
+using http_server.Router.RouterResults;
 using http;
+using HttpMethod = http_server.HttpMethod;
 
 class Program
 {
@@ -12,6 +14,7 @@ class Program
         var certPassword = Environment.GetEnvironmentVariable("CERT_PASSWORD");
         var cert = TryLoadCertificate(certPath, certPassword);
         var server = new HttpServer(IPAddress.Any, 8080, cert);
+        server.Router.TryRegisterRoute("GET", "/heartbeat", async ctx => new Ok("Healthy"));
         await server.Start();  // Wait for the server to run
         Console.WriteLine("Server stopped");
     }
