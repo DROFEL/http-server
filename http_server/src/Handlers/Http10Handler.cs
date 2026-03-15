@@ -37,7 +37,7 @@ public class Http10Handler :  BaseHttpVersionHandler
         {
             case Ok:
             {
-                this.Context.TransportOut.Write(HttpVersionExtensions.Http10Bytes);
+                Context.HttpResponse.WriteResponseLineAndHeaders(writer);
                 
                 break;
             }

@@ -1,6 +1,6 @@
 using System.Reflection;
 using http_server.helpers;
-using http_server.Router.RouterResults;
+using http_server.Router.RouteMatchers;
 
 namespace http_server.Router;
 
@@ -19,6 +19,7 @@ public class RouteHandler : IRouteHandler
         {
             case MatcherStrategy.Radix:
                 _builder = new RadixRouteMatcher<Dictionary<string, IRouteHandler.RouteDelegate>>();
+                _matcher = _builder.Compile();
                 break;
             case MatcherStrategy.CompiledRadix:
                 break;
@@ -41,8 +42,9 @@ public class RouteHandler : IRouteHandler
 
         if (_builder is null)
             throw new InvalidOperationException("No route builder available.");
-
-        _matcher = _builder.Compile();
+        
+        DiscoverRoutesFromAttributes();
+        
         _builder = null;
         _built = true;
     }
@@ -119,18 +121,18 @@ public class RouteHandler : IRouteHandler
     }
     private static bool IsValidRouteMethod(MethodInfo method)
     {
-        if (method.ReturnType != typeof(void))
-            return false;
-
-        var parameters = method.GetParameters();
-        if (parameters.Length != 1)
-            return false;
-
-        if (parameters[0].ParameterType != typeof(RouterContext))
-            return false;
-
-        if (!method.IsStatic)
-            return false;
+        // if (method.ReturnType != typeof(void))
+        //     return false;
+        //
+        // var parameters = method.GetParameters();
+        // if (parameters.Length != 1)
+        //     return false;
+        //
+        // if (parameters[0].ParameterType != typeof(RouterContext))
+        //     return false;
+        //
+        // if (!method.IsStatic)
+        //     return false;
 
         return true;
     }

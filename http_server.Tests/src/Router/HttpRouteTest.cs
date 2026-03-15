@@ -12,7 +12,7 @@ public class HttpRouteTest
     {
         var attribute = new HTTPRoute(HttpMethod.Get, "/users");
 
-        Assert.That(attribute.Method, Is.EqualTo(HttpMethod.Get));
+        Assert.That(attribute.Method, Is.EqualTo("GET"));
         Assert.That(attribute.Path, Is.EqualTo("/users"));
     }
 
@@ -34,7 +34,7 @@ public class HttpRouteTest
         var route = methodInfo!.GetCustomAttribute<HTTPRoute>();
 
         Assert.That(route, Is.Not.Null);
-        Assert.That(route!.Method, Is.EqualTo(HttpMethod.Get));
+        Assert.That(route!.Method, Is.EqualTo("GET"));
         Assert.That(route.Path, Is.EqualTo("/users"));
     }
 

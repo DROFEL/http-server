@@ -97,8 +97,9 @@ public class HttpConnectionListener : IConnectionHandler
             {
                 var httpRequest = await _parser.ParseRequest(reader);
                 version = httpRequest.HttpVersion;
+                var httpResponse = new HttpResponse(version, HttpCodes.Ok);
 
-                var context = new ConnectionContext(reader, writer, httpRequest, null, cts.Token);
+                var context = new ConnectionContext(reader, writer, httpRequest, httpResponse, cts.Token);
                 _log.Debug($"Request on version {httpRequest.HttpVersion.ToString()} to {httpRequest.Path} with {httpRequest.Method}.");
                 var handler = HttpHandlerFactory.Create(httpRequest.HttpVersion, context, _routeHandler);
 
@@ -116,7 +117,8 @@ public class HttpConnectionListener : IConnectionHandler
                 HttpServerMetrics.RequestsFailed.Inc();
                 _log.Info($"Request failed: {e.Message}");
                 var userErrorHttpResponse = new HttpResponse(version, 500);
-                userErrorHttpResponse.WriteResponseLineAndHeaders(writer, cts.Token);
+                userErrorHttpResponse.WriteResponseLineAndHeaders(writer);
+                await writer.FlushAsync(_cts.Token);
             }
             finally
             {

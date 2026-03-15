@@ -19,7 +19,7 @@ public class Http09Handler :  BaseHttpVersionHandler
         var routerContext = new RouterContext(httpRequest, Context.HttpResponse, Context.TransportOut);
         var result = await handler.Invoke(routerContext);
         var writer = Context.TransportOut;
-        Context.HttpResponse.WriteResponseLineAndHeaders(Context.TransportOut, ct);
+        Context.HttpResponse.WriteResponseLineAndHeaders(Context.TransportOut);
         var content = Serializer.SerializeAndWrite(null, Context.TransportOut, ct);
     }
 }

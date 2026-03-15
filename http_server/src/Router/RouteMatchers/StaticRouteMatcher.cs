@@ -1,4 +1,4 @@
-namespace http_server.Router.RouterResults;
+namespace http_server.Router.RouteMatchers;
 
 public class StaticRouteMatcher<T> : IRouteMatcher<T>, IRouteMatcherBuilder<T>
 {

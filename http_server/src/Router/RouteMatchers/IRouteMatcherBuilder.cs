@@ -1,4 +1,4 @@
-namespace http_server.Router.RouterResults;
+namespace http_server.Router.RouteMatchers;
 
 internal interface IRouteMatcherBuilder<T>
 {

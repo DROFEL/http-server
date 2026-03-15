@@ -1,4 +1,4 @@
-using http_server.Router;
+using http_server.Router.RouteMatchers;
 
 namespace http_server.Tests.Router;
 
@@ -16,7 +16,7 @@ public class RadixRouteMatcherTests
     [Test]
     public void TryMatchRoute_Empty()
     {
-        var added = _matcher.TryAddRoute("","Enpty");
+        var added = _matcher.TryAddRoute("","Empty");
         Assert.That(added, Is.False);
 
         var matched = _matcher.TryMatchRoute("", out var route);

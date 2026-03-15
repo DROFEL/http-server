@@ -1,7 +1,8 @@
+using System.Runtime.CompilerServices;
 using System.Text;
+[assembly: InternalsVisibleTo("http_server.Tests")]
 
-namespace http_server.Router.RouterResults;
-
+namespace http_server.Router.RouteMatchers;
 internal class RadixRouteMatcher<T> : IRouteMatcher<T>, IRouteMatcherBuilder<T>
 {
     private readonly char delimiter= '/';

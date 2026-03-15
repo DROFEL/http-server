@@ -1,4 +1,5 @@
 using http_server.Router;
+using http_server.Router.RouterResults;
 
 namespace http_server.Tests.Router;
 
@@ -11,10 +12,10 @@ public class RouteHandlerTest
     {
         var sut = new RouteHandler();
 
-        Action<RouterContext> handler = _ => { };
+        IRouteHandler.RouteDelegate handler = _ => { return new ValueTask<IHttpResult>(new Ok());};
 
-        var registered = sut.TryRegisterRoute(HttpMethod.Get, "/users", handler);
-        var matched = sut.TryResolve(HttpMethod.Get, "/users", out var foundHandler);
+        var registered = sut.TryRegisterRoute("GET", "/users", handler);
+        var matched = sut.TryResolve("GET", "/users", out var foundHandler);
 
         Assert.That(registered, Is.True);
         Assert.That(matched, Is.True);
@@ -26,7 +27,7 @@ public class RouteHandlerTest
     {
         var sut = new RouteHandler();
 
-        var matched = sut.TryResolve(HttpMethod.Get, "/missing", out var handler);
+        var matched = sut.TryResolve("GET", "/missing", out var handler);
 
         Assert.That(matched, Is.False);
         Assert.That(handler, Is.Null);
@@ -36,11 +37,10 @@ public class RouteHandlerTest
     public void TryMatchRoute_Returns_False_When_Method_Does_Not_Exist_For_Path()
     {
         var sut = new RouteHandler();
+        IRouteHandler.RouteDelegate getHandler = _ => { return new ValueTask<IHttpResult>(new Ok());};
+        sut.TryRegisterRoute("GET", "/users", getHandler);
 
-        Action<RouterContext> getHandler = _ => { };
-        sut.TryRegisterRoute(HttpMethod.Get, "/users", getHandler);
-
-        var matched = sut.TryResolve(HttpMethod.Post, "/users", out var foundHandler);
+        var matched = sut.TryResolve("POST", "/users", out var foundHandler);
 
         Assert.That(matched, Is.False);
         Assert.That(foundHandler, Is.Null);
@@ -50,12 +50,11 @@ public class RouteHandlerTest
     public void TryRegisterRoute_Returns_False_When_Same_Method_Already_Registered_For_Path()
     {
         var sut = new RouteHandler();
+        IRouteHandler.RouteDelegate handler1 = _ => { return new ValueTask<IHttpResult>(new Ok());};
+        IRouteHandler.RouteDelegate handler2 = _ => { return new ValueTask<IHttpResult>(new Ok());};
 
-        Action<RouterContext> handler1 = _ => { };
-        Action<RouterContext> handler2 = _ => { };
-
-        var first = sut.TryRegisterRoute(HttpMethod.Get, "/users", handler1);
-        var second = sut.TryRegisterRoute(HttpMethod.Get, "/users", handler2);
+        var first = sut.TryRegisterRoute("GET", "/users", handler1);
+        var second = sut.TryRegisterRoute("GET", "/users", handler2);
 
         Assert.That(first, Is.True);
         Assert.That(second, Is.False);
@@ -65,15 +64,14 @@ public class RouteHandlerTest
     public void TryRegisterRoute_Allows_Different_Methods_For_Same_Path()
     {
         var sut = new RouteHandler();
+        IRouteHandler.RouteDelegate getHandler = _ => { return new ValueTask<IHttpResult>(new Ok());};
+        IRouteHandler.RouteDelegate postHandler = _ => { return new ValueTask<IHttpResult>(new Ok());};
 
-        Action<RouterContext> getHandler = _ => { };
-        Action<RouterContext> postHandler = _ => { };
-
-        var getRegistered = sut.TryRegisterRoute(HttpMethod.Get, "/users", getHandler);
+        var getRegistered = sut.TryRegisterRoute("GET", "/users", getHandler);
         var postRegistered = sut.TryRegisterRoute(HttpMethod.Post, "/users", postHandler);
 
-        var getMatched = sut.TryResolve(HttpMethod.Get, "/users", out var foundGet);
-        var postMatched = sut.TryResolve(HttpMethod.Post, "/users", out var foundPost);
+        var getMatched = sut.TryResolve("GET", "/users", out var foundGet);
+        var postMatched = sut.TryResolve("POST", "/users", out var foundPost);
 
         Assert.That(getRegistered, Is.True);
         Assert.That(postRegistered, Is.True);
