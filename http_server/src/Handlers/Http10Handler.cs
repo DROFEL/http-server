@@ -7,7 +7,7 @@ namespace http_server.Handlers;
 
 public class Http10Handler :  BaseHttpVersionHandler
 {
-    public Http10Handler(ConnectionContext context, IRouteHandler routeHandler) : base(context, routeHandler)
+    public Http10Handler(IRouteHandler routeHandler) : base(routeHandler)
     {
     }
     

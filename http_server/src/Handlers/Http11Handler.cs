@@ -8,7 +8,7 @@ namespace http_server.Handlers;
 
 public class Http11Handler : BaseHttpVersionHandler
 {
-    public Http11Handler(ConnectionContext context, IRouteHandler routeHandler) : base(context, routeHandler)
+    public Http11Handler(IRouteHandler routeHandler) : base(routeHandler)
     {
     }
 
@@ -44,11 +44,12 @@ public class Http11Handler : BaseHttpVersionHandler
             case Ok:
             {
                 Context.HttpResponse._statusCode = (HttpCodes)result.StatusCode;
-                var headers = Context.HttpResponse._headers;
-                headers["Content-Length"] = "100";
                 break;
             }
         }
+        
+        var headers = Context.HttpResponse._headers;
+        headers["Content-Length"] = "100";
         
         Context.HttpResponse.WriteResponseLineAndHeaders(writer);
         await pipe.Reader.CopyToAsync(Context.TransportOut, ct);

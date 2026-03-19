@@ -7,7 +7,7 @@ namespace http_server.Handlers;
 
 public class Http09Handler :  BaseHttpVersionHandler
 {
-    public Http09Handler(ConnectionContext context, IRouteHandler routeHandler) : base(context, routeHandler) {}
+    public Http09Handler(IRouteHandler routeHandler) : base(routeHandler) {}
     
     public override async Task HandleAsync(CancellationToken ct)
     {

@@ -3,6 +3,7 @@ using System.IO.Pipelines;
 using System.Net.Security;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using http_server.Handlers;
 using http_server.helpers;
 using http_server.Parsers;
@@ -73,39 +74,33 @@ public class HttpConnectionListener : IConnectionHandler
         _cts.Dispose();
     }
     
-    public async Task HandleConnectionAsync(Stream wire, CancellationToken token = default)
+    public async Task HandleConnectionAsync(Stream stream, CancellationToken token = default)
     {
         HttpServerMetrics.ActiveConnections.Inc();
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         _log.Debug("Connection opened");
 
+        var (wire, sslProtocol) = await NegotiateTls(stream, token);
         await using (wire)
         {
-            if (_certificate is not null)
-            {
-                var ssl = new SslStream(wire, leaveInnerStreamOpen: false);
-                await ssl.AuthenticateAsServerAsync(_certificate);
-                wire = ssl;
-            }
-
             var reader = PipeReader.Create(wire);
             var writer = PipeWriter.Create(wire);
             var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+
+            if (_certificate is null && await _parser.LooksLikeTls(reader))
+            {
+                _log.Warning($"TSL request on non tsl listener");
+                return;
+            }
             
             var version = HttpVersion.Http10;
             try
             {
-                var httpRequest = await _parser.ParseRequest(reader);
-                version = httpRequest.HttpVersion;
-                var httpResponse = new HttpResponse(version, HttpCodes.Ok);
-
-                var context = new ConnectionContext(reader, writer, httpRequest, httpResponse, cts.Token);
-                _log.Debug($"Request on version {httpRequest.HttpVersion.ToString()} to {httpRequest.Path} with {httpRequest.Method}.");
-                var handler = HttpHandlerFactory.Create(httpRequest.HttpVersion, context, _routeHandler);
-
-                _log.Debug($"Request on version {httpRequest.HttpVersion} to {httpRequest.Path} with {httpRequest.Method}.");
+                version = await ResolveVersion(reader, sslProtocol);
+                _log.Debug($"Request on version {version}.");
+                var handler = HttpHandlerFactory.Create(version, _routeHandler);
                 HttpServerMetrics.RequestsTotal.Inc();
-
+                
                 await using (handler)
                 {
                     await handler.HandleAsync(cts.Token);
@@ -127,6 +122,53 @@ public class HttpConnectionListener : IConnectionHandler
                 HttpServerMetrics.ActiveConnections.Dec();
             }
         }
+    }
+
+    private async Task<HttpVersion> ResolveVersion(PipeReader reader, SslApplicationProtocol? sslProtocol)
+    {
+        if (sslProtocol.HasValue)
+        {
+            var p = sslProtocol.Value;
+            if (p == SslApplicationProtocol.Http11) return HttpVersion.Http11;
+            if (p == SslApplicationProtocol.Http2)  return HttpVersion.Http2;
+            if (p == SslApplicationProtocol.Http3)  return HttpVersion.Http3;
+
+            throw new NotSupportedException($"Unsupported ALPN protocol: {p}");
+                
+        }
+        return await _parser.GetHttpVersion(reader);
+    }
+
+    private async Task<(Stream, SslApplicationProtocol?)> NegotiateTls(Stream wire, CancellationToken ct)
+    {
+        if (_certificate is not null)
+        {
+            var options = new SslServerAuthenticationOptions
+            {
+                ServerCertificate = _certificate,
+                EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls12
+                                      | System.Security.Authentication.SslProtocols.Tls13,
+                ApplicationProtocols = new List<SslApplicationProtocol>
+                {
+                    SslApplicationProtocol.Http2,
+                    SslApplicationProtocol.Http11
+                }
+            };
+            try
+            {
+                var ssl = new SslStream(wire, leaveInnerStreamOpen: false);
+                await ssl.AuthenticateAsServerAsync(options, ct);
+                return (ssl, ssl.NegotiatedApplicationProtocol);
+            }
+            catch (Exception e)
+            {
+                _log.Error($"Failed to authenticate TLS: {e.Message}");
+                throw;
+            }
+        }
+
+        return (wire, null);
+
     }
     public async ValueTask DisposeAsync()
     {

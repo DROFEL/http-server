@@ -23,19 +23,21 @@ public class HttpServer : IAsyncDisposable
     private CancellationTokenSource _cts = new();
 
     public HttpServer(IPAddress ip, int port)
+        : this(ip, port, null)
     {
-        
-        _routeHandler = new RouteHandler();
-        _log = new Log();
-        _httpConnectionListener = new HttpConnectionListener(new TcpConnectionAccepter(ip, port), _routeHandler, _certificate);
-        _certificate = null;
-
-        _ = typeof(http_server.ServerMetrics.PrometheusMetrics);
     }
 
-    public HttpServer(IPAddress ip, int port, X509Certificate2 certificate): this(ip, port)
+    public HttpServer(IPAddress ip, int port, X509Certificate2? certificate)
     {
-        this._certificate = certificate;
+        _certificate = certificate;
+        _routeHandler = new RouteHandler();
+        _log = new Log();
+        _httpConnectionListener = new HttpConnectionListener(
+            new TcpConnectionAccepter(ip, port),
+            _routeHandler,
+            _certificate);
+
+        _ = typeof(http_server.ServerMetrics.PrometheusMetrics);
     }
     
     public async Task StopAsync()

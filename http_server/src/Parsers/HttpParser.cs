@@ -10,11 +10,45 @@ namespace http_server.Parsers;
 public class HttpParser : IHttpParser
 {
     private static readonly byte[] Delimiter = Encoding.ASCII.GetBytes("\r\n");
+    private static ReadOnlySpan<byte> TlsPrefix => [0x16, 0x03];
     private readonly ILog _logger;
 
     public HttpParser()
     {
         _logger = new Log();
+    }
+    
+    public async Task<bool> LooksLikeTls(PipeReader reader)
+    {
+        ReadResult readResult = await reader.ReadAsync();
+        ReadOnlySequence<byte> buffer = readResult.Buffer;
+
+        bool looksLikeTls = LooksLikeTls(buffer);
+
+        reader.AdvanceTo(buffer.Start, buffer.End);
+        return looksLikeTls;
+    }
+
+    private static bool LooksLikeTls(ReadOnlySequence<byte> buffer)
+    {
+        if (buffer.Length < TlsPrefix.Length)
+            return false;
+
+        //stackalloc should be faster than TryRead on ReadOnlySequence
+        Span<byte> first = stackalloc byte[2];
+        buffer.Slice(0, 2).CopyTo(first);
+        return first.SequenceEqual(TlsPrefix);
+    }
+    
+    public async Task<HttpVersion> GetHttpVersion(PipeReader reader)
+    {
+        var header = await reader.ReadAsync();
+        var res = new string(Encoding.ASCII.GetChars(header.Buffer.ToArray()));
+        // switch ()
+        // {
+            
+        // }
+        return HttpVersion.Http11;
     }
 
     public async Task<HttpRequest> ParseRequest(PipeReader reader)

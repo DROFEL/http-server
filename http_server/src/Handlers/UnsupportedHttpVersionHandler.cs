@@ -4,7 +4,7 @@ namespace http_server.Handlers;
 
 public class UnsupportedHttpVersionHandler : BaseHttpVersionHandler
 {
-    public UnsupportedHttpVersionHandler(ConnectionContext context, IRouteHandler routeHandler) : base(context, routeHandler)
+    public UnsupportedHttpVersionHandler(IRouteHandler routeHandler) : base(routeHandler)
     {
     }
     public Task Accept(ConnectionContext connectionContext)

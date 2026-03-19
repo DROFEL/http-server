@@ -7,10 +7,9 @@ public abstract class BaseHttpVersionHandler: IHttpVersionHandler
     protected IRouteHandler RouteHandler { get; }
     protected ConnectionContext Context { get; }
 
-    public BaseHttpVersionHandler(ConnectionContext context, IRouteHandler routeHandler)
+    public BaseHttpVersionHandler(IRouteHandler routeHandler)
     {
         RouteHandler = routeHandler;
-        Context = context;
     }
 
     public abstract Task HandleAsync(CancellationToken ct);
