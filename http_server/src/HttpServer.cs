@@ -32,10 +32,12 @@ public class HttpServer : IAsyncDisposable
         _certificate = certificate;
         _routeHandler = new RouteHandler();
         _log = new Log();
+        var httpConnectionListenerOptions = new HttpConnectionListenerOptions(certificate);
         _httpConnectionListener = new HttpConnectionListener(
             new TcpConnectionAccepter(ip, port),
-            _routeHandler,
-            _certificate);
+            _routeHandler
+            // ,httpConnectionListenerOptions
+            );
 
         _ = typeof(http_server.ServerMetrics.PrometheusMetrics);
     }

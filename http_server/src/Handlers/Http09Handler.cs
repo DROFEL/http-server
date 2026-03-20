@@ -7,19 +7,19 @@ namespace http_server.Handlers;
 
 public class Http09Handler :  BaseHttpVersionHandler
 {
-    public Http09Handler(IRouteHandler routeHandler) : base(routeHandler) {}
+    public Http09Handler(IRouteHandler routeHandler, HttpHandlerOptions options) : base(routeHandler, options) {}
     
     public override async Task HandleAsync(CancellationToken ct)
     {
-        var httpRequest = Context.HttpRequest;
+        var httpRequest = await ParseRequest();
+        var httpResponse = CreateResponse();
         if (!RouteHandler.TryResolve(httpRequest.Method.ToString(), httpRequest.Path, out var handler))
         {
             return;
         }
-        var routerContext = new RouterContext(httpRequest, Context.HttpResponse, Context.TransportOut);
+        var routerContext = new RouterContext(httpRequest, httpResponse, Writer);
         var result = await handler.Invoke(routerContext);
-        var writer = Context.TransportOut;
-        Context.HttpResponse.WriteResponseLineAndHeaders(Context.TransportOut);
-        var content = Serializer.SerializeAndWrite(null, Context.TransportOut, ct);
+        httpResponse.WriteResponseLineAndHeaders(Writer);
+        var content = Serializer.SerializeAndWrite(null, Writer, ct);
     }
 }

@@ -1,9 +1,6 @@
 using System.Collections.Concurrent;
 using System.IO.Pipelines;
 using System.Net.Security;
-using System.Runtime.InteropServices;
-using System.Security.Cryptography.X509Certificates;
-using System.Text;
 using http_server.Handlers;
 using http_server.helpers;
 using http_server.Parsers;
@@ -19,16 +16,19 @@ public class HttpConnectionListener : IConnectionHandler
     private readonly ITcpConnectionAccepter _accepter;
     private readonly ConcurrentDictionary<long, Task> _activeConnections;
     private long _nextConnectionId = 0;
-    private readonly X509Certificate2? _certificate;
+    private readonly HttpConnectionListenerOptions _options = new HttpConnectionListenerOptions(null);
     private CancellationTokenSource _cts;
 
-    public HttpConnectionListener(ITcpConnectionAccepter accepter, IRouteHandler routeHandler, X509Certificate2? certificate)
+    public HttpConnectionListener(ITcpConnectionAccepter accepter, IRouteHandler routeHandler, HttpConnectionListenerOptions options = null)
     {
         this._activeConnections = new();
         this._accepter = accepter;
         this._parser = new HttpParser();
         this._routeHandler = routeHandler;
-        this._certificate = certificate;
+        if (options is not null)
+        {
+            this._options = options;
+        }
         this._log = new Log();
         this._cts = new CancellationTokenSource();
     }
@@ -83,11 +83,12 @@ public class HttpConnectionListener : IConnectionHandler
         var (wire, sslProtocol) = await NegotiateTls(stream, token);
         await using (wire)
         {
+            var pipe = new Pipe();
             var reader = PipeReader.Create(wire);
             var writer = PipeWriter.Create(wire);
             var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
 
-            if (_certificate is null && await _parser.LooksLikeTls(reader))
+            if (_options.certificate is null && await _parser.LooksLikeTls(reader))
             {
                 _log.Warning($"TSL request on non tsl listener");
                 return;
@@ -98,7 +99,8 @@ public class HttpConnectionListener : IConnectionHandler
             {
                 version = await ResolveVersion(reader, sslProtocol);
                 _log.Debug($"Request on version {version}.");
-                var handler = HttpHandlerFactory.Create(version, _routeHandler);
+                var handlerOptions = new HttpHandlerOptions(version, reader, writer);
+                var handler = HttpHandlerFactory.Create(version, _routeHandler, handlerOptions);
                 HttpServerMetrics.RequestsTotal.Inc();
                 
                 await using (handler)
@@ -141,11 +143,11 @@ public class HttpConnectionListener : IConnectionHandler
 
     private async Task<(Stream, SslApplicationProtocol?)> NegotiateTls(Stream wire, CancellationToken ct)
     {
-        if (_certificate is not null)
+        if (_options.certificate is not null)
         {
             var options = new SslServerAuthenticationOptions
             {
-                ServerCertificate = _certificate,
+                ServerCertificate = _options.certificate,
                 EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls12
                                       | System.Security.Authentication.SslProtocols.Tls13,
                 ApplicationProtocols = new List<SslApplicationProtocol>

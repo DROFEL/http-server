@@ -10,6 +10,9 @@ namespace http_server.Parsers;
 public class HttpParser : IHttpParser
 {
     private static readonly byte[] Delimiter = Encoding.ASCII.GetBytes("\r\n");
+    private static ReadOnlySpan<byte> http10_suffix => "1.0"u8;
+    private static ReadOnlySpan<byte> http11_suffix => "1.1"u8;
+    private static ReadOnlySpan<byte> http20_prefix => "PRI *"u8;
     private static ReadOnlySpan<byte> TlsPrefix => [0x16, 0x03];
     private readonly ILog _logger;
 
@@ -24,8 +27,7 @@ public class HttpParser : IHttpParser
         ReadOnlySequence<byte> buffer = readResult.Buffer;
 
         bool looksLikeTls = LooksLikeTls(buffer);
-
-        reader.AdvanceTo(buffer.Start, buffer.End);
+        reader.AdvanceTo(buffer.Start, buffer.Start);
         return looksLikeTls;
     }
 
@@ -43,12 +45,23 @@ public class HttpParser : IHttpParser
     public async Task<HttpVersion> GetHttpVersion(PipeReader reader)
     {
         var header = await reader.ReadAsync();
-        var res = new string(Encoding.ASCII.GetChars(header.Buffer.ToArray()));
-        // switch ()
-        // {
-            
-        // }
-        return HttpVersion.Http11;
+        var buffer = header.Buffer;
+        var httpVersion = DecideVersion(buffer);
+        reader.AdvanceTo(buffer.Start, buffer.Start);
+        return httpVersion;
+    }
+
+    private HttpVersion DecideVersion(ReadOnlySequence<byte> buffer)
+    {
+        var (line, _) = ReadLineFromBuffer(buffer, Delimiter);
+        Span<byte> version = stackalloc byte[5];
+        line.Slice(0,5).CopyTo(version);
+        if (version.StartsWith(http20_prefix)) return HttpVersion.Http2;
+        
+        line.Slice(line.Length - 3, 3).CopyTo(version);
+        if (version.StartsWith(http11_suffix)) return HttpVersion.Http11;
+        else if (version.StartsWith(http10_suffix)) return HttpVersion.Http10;
+        return HttpVersion.Http09;
     }
 
     public async Task<HttpRequest> ParseRequest(PipeReader reader)

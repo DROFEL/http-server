@@ -8,7 +8,7 @@ namespace http_server.Handlers;
 
 public class Http11Handler : BaseHttpVersionHandler
 {
-    public Http11Handler(IRouteHandler routeHandler) : base(routeHandler)
+    public Http11Handler(IRouteHandler routeHandler, HttpHandlerOptions options) : base(routeHandler, options)
     {
     }
 
@@ -16,43 +16,44 @@ public class Http11Handler : BaseHttpVersionHandler
     {
         if (ct.IsCancellationRequested)
         {
-            this.Context.TransportOut.Write(HttpVersionExtensions.Http11Bytes);
-            this.Context.TransportOut.Write(HttpResponse.CanceledRequestResponsePrefixBytes);
-            this.Context.TransportOut.Write(HttpResponse.ErrorResponseSuffix);
-            await Context.TransportOut.FlushAsync(ct);
+            Writer.Write(HttpVersionExtensions.Http11Bytes);
+            Writer.Write(HttpResponse.CanceledRequestResponsePrefixBytes);
+            Writer.Write(HttpResponse.ErrorResponseSuffix);
+            await Writer.FlushAsync(ct);
         }
-        var httpRequest = Context.HttpRequest;
+
+        var httpRequest = await ParseRequest();
+        var httpResponse = CreateResponse();
         
         if (!RouteHandler.TryResolve(httpRequest.Method.ToString().ToUpperInvariant(), httpRequest.Path, out var handler))
         {
-            Context.TransportOut.Write(HttpVersionExtensions.Http11Bytes);
-            Context.TransportOut.Write(HttpResponse.NotFoundResponsePrefix);
-            Context.TransportOut.Write(HttpResponse.ErrorResponseSuffix);
-            await Context.TransportOut.FlushAsync(ct);
+            Writer.Write(HttpVersionExtensions.Http11Bytes);
+            Writer.Write(HttpResponse.NotFoundResponsePrefix);
+            Writer.Write(HttpResponse.ErrorResponseSuffix);
+            await Writer.FlushAsync(ct);
             return;
         }
 
         var pipe = new Pipe();
-        var routerContext = new RouterContext(httpRequest, Context.HttpResponse, pipe.Writer);
+        var routerContext = new RouterContext(httpRequest, httpResponse, pipe.Writer);
         var invokeTask = handler.Invoke(routerContext);
         await pipe.Writer.CompleteAsync();
         
-        var writer = Context.TransportOut;
         var result = await invokeTask;
         switch (result)
         {
             case Ok:
             {
-                Context.HttpResponse._statusCode = (HttpCodes)result.StatusCode;
+                httpResponse._statusCode = (HttpCodes)result.StatusCode;
                 break;
             }
         }
         
-        var headers = Context.HttpResponse._headers;
+        var headers = httpResponse._headers;
         headers["Content-Length"] = "100";
         
-        Context.HttpResponse.WriteResponseLineAndHeaders(writer);
-        await pipe.Reader.CopyToAsync(Context.TransportOut, ct);
-        await writer.FlushAsync(ct);
+        httpResponse.WriteResponseLineAndHeaders(Writer);
+        await pipe.Reader.CopyToAsync(Writer, ct);
+        await Writer.FlushAsync(ct);
     }
 }
