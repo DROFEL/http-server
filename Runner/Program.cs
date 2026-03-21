@@ -14,7 +14,8 @@ public class Program
         var certPassword = Environment.GetEnvironmentVariable("CERT_PASSWORD");
         var keyPath = Environment.GetEnvironmentVariable("CERT_KEY_PATH");
         var cert = TryLoadCertificate(certPath, certPassword, keyPath);
-        var server = new HttpServer(IPAddress.Any, 8080, cert);
+        var server = new HttpServer();
+        server.AddListener(IPAddress.Any, 8080, cert);
         server.Router.TryRegisterRoute("GET", "/heartbeat", async ctx => new Ok("Healthy"));
         await server.Start();  // Wait for the server to run
         Console.WriteLine("Server stopped");

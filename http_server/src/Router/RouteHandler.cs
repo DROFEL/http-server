@@ -1,12 +1,13 @@
 using System.Reflection;
 using http_server.helpers;
 using http_server.Router.RouteMatchers;
+using Microsoft.Extensions.Logging;
 
 namespace http_server.Router;
 
 public class RouteHandler : IRouteHandler
 {
-    private readonly ILog _log = new Log();
+    private readonly ILogger _log = new Logger();
 
     private IRouteMatcherBuilder<Dictionary<string, IRouteHandler.RouteDelegate>>? _builder;
     private IRouteMatcher<Dictionary<string, IRouteHandler.RouteDelegate>> _matcher;
@@ -109,11 +110,11 @@ public class RouteHandler : IRouteHandler
 
                 if (!IsValidRouteMethod(method))
                 {
-                    _log.Warning($"Skipping route {method.Name}: incompatible signature");
+                    _log.Log(LogLevel.Warning,$"Skipping route {method.Name}: incompatible signature");
                     continue;
                 }
 
-                _log.Info($"Found Route: {method.Name} at {attribute.Path} with {attribute.Method}");
+                _log.Log(LogLevel.Information,$"Found Route: {method.Name} at {attribute.Path} with {attribute.Method}");
                 var handler = method.CreateDelegate<IRouteHandler.RouteDelegate>();
                 TryRegisterRoute(attribute.Method, attribute.Path, handler);
             }

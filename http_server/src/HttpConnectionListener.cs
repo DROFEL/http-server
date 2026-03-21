@@ -5,31 +5,29 @@ using http_server.Handlers;
 using http_server.helpers;
 using http_server.Parsers;
 using http_server.Router;
+using Microsoft.Extensions.Logging;
 
 namespace http_server;
 
 public class HttpConnectionListener : IConnectionHandler
 {
-    private readonly ILog _log;
+    private readonly ILogger _log;
     private readonly IHttpParser _parser;
     private readonly IRouteHandler _routeHandler;
     private readonly ITcpConnectionAccepter _accepter;
     private readonly ConcurrentDictionary<long, Task> _activeConnections;
     private long _nextConnectionId = 0;
-    private readonly HttpConnectionListenerOptions _options = new HttpConnectionListenerOptions(null);
+    private readonly HttpConnectionListenerOptions _options;
     private CancellationTokenSource _cts;
 
-    public HttpConnectionListener(ITcpConnectionAccepter accepter, IRouteHandler routeHandler, HttpConnectionListenerOptions options = null)
+    public HttpConnectionListener(IRouteHandler routeHandler, HttpConnectionListenerOptions options)
     {
+        this._options = options;
         this._activeConnections = new();
-        this._accepter = accepter;
+        this._accepter = new TcpConnectionAccepter(options.Address, options.Port);
         this._parser = new HttpParser();
         this._routeHandler = routeHandler;
-        if (options is not null)
-        {
-            this._options = options;
-        }
-        this._log = new Log();
+        this._log = new Logger();
         this._cts = new CancellationTokenSource();
     }
     
@@ -78,7 +76,7 @@ public class HttpConnectionListener : IConnectionHandler
     {
         HttpServerMetrics.ActiveConnections.Inc();
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        _log.Debug("Connection opened");
+        _log.Log(LogLevel.Debug,"Connection opened");
 
         var (wire, sslProtocol) = await NegotiateTls(stream, token);
         await using (wire)
@@ -90,15 +88,14 @@ public class HttpConnectionListener : IConnectionHandler
 
             if (_options.certificate is null && await _parser.LooksLikeTls(reader))
             {
-                _log.Warning($"TSL request on non tsl listener");
+                _log.Log(LogLevel.Warning,$"TSL request on non tsl listener");
                 return;
             }
             
-            var version = HttpVersion.Http10;
             try
             {
-                version = await ResolveVersion(reader, sslProtocol);
-                _log.Debug($"Request on version {version}.");
+                var version = await ResolveVersion(reader, sslProtocol);
+                _log.Log(LogLevel.Debug,$"Request on version {version}.");
                 var handlerOptions = new HttpHandlerOptions(version, reader, writer);
                 var handler = HttpHandlerFactory.Create(version, _routeHandler, handlerOptions);
                 HttpServerMetrics.RequestsTotal.Inc();
@@ -112,10 +109,8 @@ public class HttpConnectionListener : IConnectionHandler
             catch (Exception e)
             {
                 HttpServerMetrics.RequestsFailed.Inc();
-                _log.Info($"Request failed: {e.Message}");
-                var userErrorHttpResponse = new HttpResponse(version, 500);
-                userErrorHttpResponse.WriteResponseLineAndHeaders(writer);
-                await writer.FlushAsync(_cts.Token);
+                _log.Log(LogLevel.Information,$"Request failed: {e.Message}");
+                wire.Close();
             }
             finally
             {
@@ -164,7 +159,7 @@ public class HttpConnectionListener : IConnectionHandler
             }
             catch (Exception e)
             {
-                _log.Error($"Failed to authenticate TLS: {e.Message}");
+                _log.Log(LogLevel.Error,$"Failed to authenticate TLS: {e.Message}");
                 throw;
             }
         }

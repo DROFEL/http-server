@@ -3,6 +3,7 @@ using System.Data;
 using System.IO.Pipelines;
 using System.Text;
 using http_server.helpers;
+using Microsoft.Extensions.Logging;
 using HttpMethod = http_server.HttpMethod;
 
 namespace http_server.Parsers;
@@ -14,11 +15,11 @@ public class HttpParser : IHttpParser
     private static ReadOnlySpan<byte> http11_suffix => "1.1"u8;
     private static ReadOnlySpan<byte> http20_prefix => "PRI *"u8;
     private static ReadOnlySpan<byte> TlsPrefix => [0x16, 0x03];
-    private readonly ILog _logger;
+    private readonly ILogger _logger;
 
     public HttpParser()
     {
-        _logger = new Log();
+        _logger = new Logger();
     }
     
     public async Task<bool> LooksLikeTls(PipeReader reader)
@@ -66,14 +67,14 @@ public class HttpParser : IHttpParser
 
     public async Task<HttpRequest> ParseRequest(PipeReader reader)
     {
-        _logger.Debug("Starting HTTP request parsing");
+        _logger.Log(LogLevel.Debug,"Starting HTTP request parsing");
 
         var http = await ReadRequestLine(reader);
         var pathOnly = http.path.Split("?")[0];
         var queryParams = ParseQueryParams(http.path);
         var headers = await ReadHeadersAsync(reader);
 
-        _logger.Info(
+        _logger.Log(LogLevel.Information,
             $"Parsed request {http.method} {pathOnly} {http.version}");
 
         return HttpRequest.Create(http.method, http.version, pathOnly, headers, queryParams);
@@ -82,12 +83,12 @@ public class HttpParser : IHttpParser
     public async Task<(HttpMethod method, string path, HttpVersion version)> ReadRequestLine(PipeReader reader)
     {
         var (line, _) = await ReadLine(reader, Delimiter);
-        _logger.Debug($"Raw request line: {line}");
+        _logger.Log(LogLevel.Debug,$"Raw request line: {line}");
 
         var http = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (http.Length < 2)
         {
-            _logger.Info($"Malformed request line: {line}");
+            _logger.Log(LogLevel.Information,$"Malformed request line: {line}");
             throw new Exception($"Malformed request line: {line}");
         }
 
@@ -116,7 +117,7 @@ public class HttpParser : IHttpParser
             httpVersion = HttpVersionExtensions.ToHttpVersion(http[2]);
         }
 
-        _logger.Debug(
+        _logger.Log(LogLevel.Debug,
             $"Parsed request line Method={method}, Path={path}, Version={httpVersion}");
 
         return (method, path, httpVersion);
@@ -140,7 +141,7 @@ public class HttpParser : IHttpParser
             var parts = param.Split('=', 2);
             if (parts.Length != 2)
             {
-                _logger.Debug($"Skipping malformed query param: {param}");
+                _logger.Log(LogLevel.Debug,$"Skipping malformed query param: {param}");
                 continue;
             }
 
@@ -160,7 +161,7 @@ public class HttpParser : IHttpParser
 
             if (header == "")
             {
-                _logger.Debug($"Finished reading headers. Count={headers.Count}");
+                _logger.Log(LogLevel.Debug,$"Finished reading headers. Count={headers.Count}");
                 return headers;
             }
 
@@ -172,19 +173,19 @@ public class HttpParser : IHttpParser
 
                 if (headers.ContainsKey(headerName))
                 {
-                    _logger.Info("Duplicate header encountered: {headerName}");
+                    _logger.Log(LogLevel.Information,$"Duplicate header encountered: {headerName}");
                 }
 
                 headers[headerName] = value;
             }
             else
             {
-                _logger.Debug($"Skipping malformed header line: {header}");
+                _logger.Log(LogLevel.Debug,$"Skipping malformed header line: {header}");
             }
 
             if (eof)
             {
-                _logger.Debug("Reached EOF while reading headers");
+                _logger.Log(LogLevel.Debug,"Reached EOF while reading headers");
                 return headers;
             }
         }

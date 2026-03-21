@@ -14,7 +14,8 @@ public class HttpServerFixture : IAsyncDisposable
     public HttpServerFixture(HttpVersion httpVersion)
     {
         var port = GetFreeTcpPort();
-        HttpServer = new HttpServer(IPAddress.Loopback, port);
+        HttpServer = new HttpServer();
+        HttpServer.AddListener(IPAddress.Loopback, port);
         HttpServer.Start();
         HttpClient = new HttpClient();
         HttpClient.BaseAddress = new Uri($"http://{IPAddress.Loopback.ToString()}:{port}/");
